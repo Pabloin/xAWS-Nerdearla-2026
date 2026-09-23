@@ -1,8 +1,3 @@
-data "aws_route53_zone" "public" {
-  name         = var.hosted_zone_name
-  private_zone = false
-}
-
 resource "aws_s3_bucket" "web" {
   bucket = var.web_bucket_name
   tags   = var.tags
@@ -25,15 +20,16 @@ resource "aws_cloudfront_origin_access_control" "web" {
 }
 
 resource "aws_acm_certificate" "web" {
-  domain_name       = var.domain_name
-  validation_method = "DNS"
+  domain_name               = var.domain_name
+  subject_alternative_names = values(var.additional_domains)
+  validation_method         = "DNS"
   lifecycle {
     create_before_destroy = true
   }
   tags = var.tags
 }
 
-resource "aws_route53_record" "validation" {
+resource "cloudflare_dns_record" "validation" {
   for_each = {
     for option in aws_acm_certificate.web.domain_validation_options : option.domain_name => {
       name   = option.resource_record_name
@@ -41,23 +37,37 @@ resource "aws_route53_record" "validation" {
       type   = option.resource_record_type
     }
   }
-  zone_id = data.aws_route53_zone.public.zone_id
-  name    = each.value.name
+  zone_id = var.cloudflare_zone_id
+  name    = trimsuffix(each.value.name, ".")
   type    = each.value.type
-  records = [each.value.record]
+  content = trimsuffix(each.value.record, ".")
   ttl     = 60
+  proxied = false
 }
 
 resource "aws_acm_certificate_validation" "web" {
   certificate_arn         = aws_acm_certificate.web.arn
-  validation_record_fqdns = [for record in aws_route53_record.validation : record.fqdn]
+  validation_record_fqdns = [for record in cloudflare_dns_record.validation : record.name]
+}
+
+resource "aws_cloudfront_function" "section_routes" {
+  name    = "${var.project_name}-${var.environment}-section-routes"
+  runtime = "cloudfront-js-1.0"
+  comment = "Serve the app and admin entry points from their S3 prefixes"
+  publish = true
+  code = templatefile("${path.module}/route-rewrite.js", {
+    mobile_domain = lookup(var.additional_domains, "mobile", "")
+    admin_domain  = lookup(var.additional_domains, "admin", "")
+    www_domain    = lookup(var.additional_domains, "www", "")
+    root_domain   = var.domain_name
+  })
 }
 
 resource "aws_cloudfront_distribution" "web" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-  aliases             = [var.domain_name]
+  aliases             = concat([var.domain_name], values(var.additional_domains))
   price_class         = "PriceClass_100"
   origin {
     domain_name              = aws_s3_bucket.web.bucket_regional_domain_name
@@ -70,6 +80,10 @@ resource "aws_cloudfront_distribution" "web" {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]
     compress               = true
+    function_association {
+      event_type   = "viewer-request"
+      function_arn = aws_cloudfront_function.section_routes.arn
+    }
     forwarded_values {
       query_string = false
       cookies {
@@ -126,13 +140,12 @@ resource "aws_s3_bucket_policy" "web" {
   policy = data.aws_iam_policy_document.web.json
 }
 
-resource "aws_route53_record" "web" {
-  zone_id = data.aws_route53_zone.public.zone_id
-  name    = var.domain_name
-  type    = "A"
-  alias {
-    name                   = aws_cloudfront_distribution.web.domain_name
-    zone_id                = aws_cloudfront_distribution.web.hosted_zone_id
-    evaluate_target_health = false
-  }
+resource "cloudflare_dns_record" "web" {
+  for_each = toset(concat([var.domain_name], values(var.additional_domains)))
+  zone_id  = var.cloudflare_zone_id
+  name     = each.value
+  type     = "CNAME"
+  content  = aws_cloudfront_distribution.web.domain_name
+  ttl      = 1
+  proxied  = false
 }

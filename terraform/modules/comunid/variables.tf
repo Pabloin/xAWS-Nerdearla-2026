@@ -4,7 +4,11 @@ variable "project_name" {
 }
 variable "environment" { type = string }
 variable "domain_name" { type = string }
-variable "hosted_zone_name" { type = string }
+variable "additional_domains" {
+  type    = map(string)
+  default = {}
+}
+variable "cloudflare_zone_id" { type = string }
 variable "default_event_id" {
   type    = string
   default = "nerdearla-2026"

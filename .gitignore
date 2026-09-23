@@ -10,6 +10,7 @@ dist/
 backend/dist/
 front_home/dist/
 front_mobile/dist/
+front_admin/dist/
 *.tsbuildinfo
 .vite/
 coverage/
@@ -47,3 +48,6 @@ Thumbs.db
 .vscode/
 *.swp
 *.swo
+
+# Personal event photos
+/01-grapsh/

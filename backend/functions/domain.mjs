@@ -25,7 +25,8 @@ export function normalizeProfile(input = {}) {
     askMeAbout: text(input.askMeAbout, 180),
     story: text(input.story, 800),
     color: /^#[0-9a-f]{6}$/i.test(text(input.color, 7)) ? text(input.color, 7).toUpperCase() : "#C8FF3D",
-    consent: input.consent === true
+    consent: input.consent === true,
+    faceConsent: input.faceConsent === true
   };
 }
 

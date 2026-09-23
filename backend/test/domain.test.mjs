@@ -7,6 +7,8 @@ test("normalizes a consented community profile", () => {
   assert.equal(result.name, "Ana Silva");
   assert.equal(result.role, "builder");
   assert.equal(result.color, "#C8FF3D");
+  assert.equal(result.faceConsent, false);
+  assert.equal(normalizeProfile({ name: "Ana", role: "builder", consent: true, faceConsent: true }).faceConsent, true);
 });
 
 test("rejects unknown roles", () => {

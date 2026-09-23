@@ -4,6 +4,7 @@ variable "aws_region" {
 }
 variable "github_owner" { type = string }
 variable "github_repo" { type = string }
+variable "cloudflare_zone_id" { type = string }
 variable "lambda_zip_path" {
   type    = string
   default = "../../../backend/dist/api.zip"

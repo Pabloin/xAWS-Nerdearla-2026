@@ -14,6 +14,18 @@ resource "aws_iam_role" "lambda" {
   tags               = var.tags
 }
 
+resource "aws_rekognition_collection" "faces" {
+  collection_id = "${var.project_name}-${var.environment}-faces"
+  tags          = var.tags
+}
+
+resource "aws_secretsmanager_secret" "admin_token" {
+  name                    = "${var.project_name}-${var.environment}-admin-token"
+  description             = "Bearer token for the Comunid admin API. Set the secret value after deployment."
+  recovery_window_in_days = 7
+  tags                    = var.tags
+}
+
 resource "aws_iam_role_policy" "lambda" {
   name = "${var.project_name}-${var.environment}-api-policy"
   role = aws_iam_role.lambda.id
@@ -21,8 +33,11 @@ resource "aws_iam_role_policy" "lambda" {
     Version = "2012-10-17"
     Statement = [
       { Effect = "Allow", Action = ["logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"], Resource = "arn:aws:logs:*:*:*" },
-      { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:UpdateItem"], Resource = [var.table_arn, "${var.table_arn}/index/*"] },
-      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = "${var.media_bucket_arn}/*" }
+      { Effect = "Allow", Action = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:Query", "dynamodb:Scan", "dynamodb:UpdateItem"], Resource = [var.table_arn, "${var.table_arn}/index/*"] },
+      { Effect = "Allow", Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"], Resource = "${var.media_bucket_arn}/*" },
+      { Effect = "Allow", Action = ["rekognition:DetectFaces"], Resource = "*" },
+      { Effect = "Allow", Action = ["rekognition:CreateUser", "rekognition:IndexFaces", "rekognition:AssociateFaces", "rekognition:DisassociateFaces", "rekognition:DeleteFaces", "rekognition:SearchUsersByImage"], Resource = aws_rekognition_collection.faces.arn },
+      { Effect = "Allow", Action = ["secretsmanager:GetSecretValue"], Resource = aws_secretsmanager_secret.admin_token.arn }
     ]
   })
 }
@@ -34,15 +49,17 @@ resource "aws_lambda_function" "api" {
   role             = aws_iam_role.lambda.arn
   handler          = "index.handler"
   runtime          = "nodejs20.x"
-  timeout          = 15
+  timeout          = 30
   memory_size      = 256
   environment {
     variables = {
-      TABLE_NAME       = var.table_name
-      MEDIA_BUCKET     = var.media_bucket_name
-      PUBLIC_APP_URL   = var.public_app_url
-      ALLOWED_ORIGINS  = join(",", var.allowed_origins)
-      DEFAULT_EVENT_ID = var.default_event_id
+      TABLE_NAME         = var.table_name
+      MEDIA_BUCKET       = var.media_bucket_name
+      PUBLIC_APP_URL     = var.public_app_url
+      ALLOWED_ORIGINS    = join(",", var.allowed_origins)
+      DEFAULT_EVENT_ID   = var.default_event_id
+      ADMIN_SECRET_ARN   = aws_secretsmanager_secret.admin_token.arn
+      FACE_COLLECTION_ID = aws_rekognition_collection.faces.collection_id
     }
   }
   tags = var.tags
@@ -53,7 +70,7 @@ resource "aws_apigatewayv2_api" "http" {
   protocol_type = "HTTP"
   cors_configuration {
     allow_headers = ["content-type", "authorization"]
-    allow_methods = ["GET", "POST", "OPTIONS"]
+    allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allow_origins = var.allowed_origins
     max_age       = 3600
   }

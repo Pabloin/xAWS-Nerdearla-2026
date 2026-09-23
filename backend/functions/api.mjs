@@ -1,15 +1,25 @@
+import { timingSafeEqual } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
-import { DynamoDBDocumentClient, GetCommand, PutCommand, QueryCommand } from "@aws-sdk/lib-dynamodb";
+import { DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
+import { AssociateFacesCommand, CreateUserCommand, DeleteFacesCommand, DetectFacesCommand, DisassociateFacesCommand, IndexFacesCommand, RekognitionClient, SearchUsersByImageCommand } from "@aws-sdk/client-rekognition";
+import { GetSecretValueCommand, SecretsManagerClient } from "@aws-sdk/client-secrets-manager";
 import QRCode from "qrcode";
 import { demoProfiles } from "./demo-profiles.mjs";
 import { encounterKeys, normalizeProfile, publicProfileUrl } from "./domain.mjs";
+import { imageBytes, rekognitionUserId } from "./face-image.mjs";
 
 const tableName = process.env.TABLE_NAME || "comunid-local";
 const publicAppUrl = process.env.PUBLIC_APP_URL || "https://comunid.app";
 const defaultEventId = process.env.DEFAULT_EVENT_ID || "nerdearla-2026";
 const adminToken = process.env.ADMIN_TOKEN || "";
-const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || "http://127.0.0.1:5190,https://comunid.app").split(",").map((origin) => origin.trim()));
+const adminSecretArn = process.env.ADMIN_SECRET_ARN || "";
+const faceCollectionId = process.env.FACE_COLLECTION_ID || "";
+const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || "http://127.0.0.1:5190,http://127.0.0.1:5192,https://comunid.app").split(",").map((origin) => origin.trim()));
 const database = DynamoDBDocumentClient.from(new DynamoDBClient({}));
+const rekognition = new RekognitionClient({});
+const secrets = new SecretsManagerClient({});
+let cachedAdminToken = "";
+let adminTokenExpiresAt = 0;
 
 function headers(event, contentType = "application/json") {
   const origin = event?.headers?.origin;
@@ -17,7 +27,7 @@ function headers(event, contentType = "application/json") {
     "content-type": contentType,
     "access-control-allow-origin": allowedOrigins.has(origin) ? origin : publicAppUrl,
     "access-control-allow-headers": "content-type,authorization",
-    "access-control-allow-methods": "GET,POST,OPTIONS",
+    "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
     vary: "origin"
   };
 }
@@ -38,9 +48,197 @@ function routeParts(event) {
   return String(event.rawPath || "/").split("/").filter(Boolean).map(decodeURIComponent);
 }
 
-function profileFromItem(item) {
-  const { pk, sk, entityType, eventId, createdAt, updatedAt, ...profile } = item;
-  return profile;
+function profileFromItem(item, includeFaceConsent = false) {
+  const { pk, sk, entityType, eventId, createdAt, updatedAt, faceConsent, ...profile } = item;
+  return includeFaceConsent ? { ...profile, faceConsent: faceConsent === true } : profile;
+}
+
+async function configuredAdminToken() {
+  if (adminToken) return adminToken;
+  if (!adminSecretArn) return "";
+  if (Date.now() < adminTokenExpiresAt) return cachedAdminToken;
+  try {
+    const result = await secrets.send(new GetSecretValueCommand({ SecretId: adminSecretArn }));
+    cachedAdminToken = result.SecretString?.trim() || "";
+  } catch (error) {
+    if (error.name !== "ResourceNotFoundException") throw error;
+    cachedAdminToken = "";
+  }
+  adminTokenExpiresAt = Date.now() + 5 * 60 * 1000;
+  return cachedAdminToken;
+}
+
+async function adminAuthorized(event) {
+  const expected = await configuredAdminToken();
+  const authorization = event.headers?.authorization || event.headers?.Authorization || "";
+  if (!expected || !authorization.startsWith("Bearer ")) return false;
+  const provided = authorization.slice(7);
+  const expectedBytes = Buffer.from(expected);
+  const providedBytes = Buffer.from(provided);
+  return expectedBytes.length === providedBytes.length && timingSafeEqual(expectedBytes, providedBytes);
+}
+
+async function queryAll(input) {
+  const items = [];
+  let key;
+  do {
+    const result = await database.send(new QueryCommand({ ...input, ExclusiveStartKey: key }));
+    items.push(...(result.Items || []));
+    key = result.LastEvaluatedKey;
+  } while (key);
+  return items;
+}
+
+async function managedProfiles(event) {
+  const items = await queryAll({
+    TableName: tableName,
+    KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+    ExpressionAttributeValues: { ":pk": `EVENT#${defaultEventId}`, ":prefix": "PROFILE#" }
+  });
+  return json(event, 200, { eventId: defaultEventId, profiles: items.map((item) => profileFromItem(item, true)) });
+}
+
+async function persistedProfile(profileId) {
+  const result = await database.send(new GetCommand({
+    TableName: tableName,
+    Key: { pk: `EVENT#${defaultEventId}`, sk: `PROFILE#${profileId}` }
+  }));
+  return result.Item;
+}
+
+function requireFaceCollection(event) {
+  return faceCollectionId ? null : json(event, 503, { error: "face_collection_not_configured" });
+}
+
+async function detectFaces(event) {
+  const bytes = imageBytes(parseBody(event).imageBase64);
+  const result = await rekognition.send(new DetectFacesCommand({ Image: { Bytes: bytes }, Attributes: ["DEFAULT"] }));
+  return json(event, 200, {
+    faces: (result.FaceDetails || []).map((face, index) => ({
+      id: index,
+      box: face.BoundingBox,
+      confidence: face.Confidence,
+      sharpness: face.Quality?.Sharpness,
+      brightness: face.Quality?.Brightness
+    }))
+  });
+}
+
+async function profileFaces(event, profileId) {
+  const faces = await queryAll({
+    TableName: tableName,
+    KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+    ExpressionAttributeValues: { ":pk": `PROFILE#${profileId}`, ":prefix": "FACE#" }
+  });
+  return json(event, 200, { profileId, faces: faces.map(({ faceId, createdAt }) => ({ faceId, createdAt })) });
+}
+
+async function enrollFace(event) {
+  const input = parseBody(event);
+  const profileId = String(input.profileId || "").trim();
+  if (!profileId) throw new Error("profile_id_required");
+  const profile = await persistedProfile(profileId);
+  if (!profile || profile.consent !== true) return json(event, 404, { error: "consented_profile_not_found" });
+  if (profile.faceConsent !== true) return json(event, 422, { error: "face_consent_required" });
+  const bytes = imageBytes(input.imageBase64);
+  const detected = await rekognition.send(new DetectFacesCommand({ Image: { Bytes: bytes }, Attributes: ["DEFAULT"] }));
+  if (detected.FaceDetails?.length !== 1) return json(event, 422, { error: "single_face_required" });
+  const userId = rekognitionUserId(defaultEventId, profileId);
+
+  try {
+    await rekognition.send(new CreateUserCommand({ CollectionId: faceCollectionId, UserId: userId }));
+  } catch (error) {
+    if (error.name !== "ResourceAlreadyExistsException") throw error;
+  }
+
+  const indexed = await rekognition.send(new IndexFacesCommand({
+    CollectionId: faceCollectionId,
+    Image: { Bytes: bytes },
+    ExternalImageId: userId,
+    MaxFaces: 1,
+    QualityFilter: "AUTO"
+  }));
+  const faceId = indexed.FaceRecords?.[0]?.Face?.FaceId;
+  if (!faceId) return json(event, 422, { error: "face_quality_insufficient" });
+
+  try {
+    const associated = await rekognition.send(new AssociateFacesCommand({
+      CollectionId: faceCollectionId,
+      UserId: userId,
+      FaceIds: [faceId]
+    }));
+    if (!associated.AssociatedFaces?.some((face) => face.FaceId === faceId)) {
+      await rekognition.send(new DeleteFacesCommand({ CollectionId: faceCollectionId, FaceIds: [faceId] }));
+      return json(event, 422, { error: "face_association_rejected" });
+    }
+    const timestamp = new Date().toISOString();
+    await database.send(new PutCommand({
+      TableName: tableName,
+      Item: { pk: `REKOGNITION_USER#${userId}`, sk: "PROFILE", profileId, eventId: defaultEventId }
+    }));
+    await database.send(new PutCommand({
+      TableName: tableName,
+      Item: { pk: `PROFILE#${profileId}`, sk: `FACE#${faceId}`, entityType: "FACE", profileId, faceId, eventId: defaultEventId, createdAt: timestamp }
+    }));
+    return json(event, 201, { profileId, faceId, createdAt: timestamp });
+  } catch (error) {
+    await rekognition.send(new DisassociateFacesCommand({ CollectionId: faceCollectionId, UserId: userId, FaceIds: [faceId] })).catch(() => {});
+    await rekognition.send(new DeleteFacesCommand({ CollectionId: faceCollectionId, FaceIds: [faceId] })).catch(() => {});
+    throw error;
+  }
+}
+
+async function deleteFace(event, profileId, faceId) {
+  const key = { pk: `PROFILE#${profileId}`, sk: `FACE#${faceId}` };
+  const result = await database.send(new GetCommand({ TableName: tableName, Key: key }));
+  if (!result.Item) return json(event, 404, { error: "face_not_found" });
+  const userId = rekognitionUserId(defaultEventId, profileId);
+  await rekognition.send(new DisassociateFacesCommand({ CollectionId: faceCollectionId, UserId: userId, FaceIds: [faceId] }));
+  await rekognition.send(new DeleteFacesCommand({ CollectionId: faceCollectionId, FaceIds: [faceId] }));
+  await database.send(new DeleteCommand({ TableName: tableName, Key: key }));
+  return json(event, 200, { deleted: true, faceId });
+}
+
+async function searchFaces(event) {
+  const bytes = imageBytes(parseBody(event).imageBase64);
+  const result = await rekognition.send(new SearchUsersByImageCommand({
+    CollectionId: faceCollectionId,
+    Image: { Bytes: bytes },
+    MaxUsers: 3,
+    UserMatchThreshold: 80
+  }));
+  const matches = await Promise.all((result.UserMatches || []).map(async (match) => {
+    const userId = match.User?.UserId;
+    if (!userId) return null;
+    const mapping = await database.send(new GetCommand({ TableName: tableName, Key: { pk: `REKOGNITION_USER#${userId}`, sk: "PROFILE" } }));
+    if (!mapping.Item || mapping.Item.eventId !== defaultEventId) return null;
+    const profile = await persistedProfile(mapping.Item.profileId);
+    if (!profile || profile.consent !== true || profile.faceConsent !== true) return null;
+    return { profileId: profile.id, name: profile.name, similarity: match.Similarity };
+  }));
+  return json(event, 200, { matches: matches.filter(Boolean) });
+}
+
+async function updateFaceConsent(event, profileId) {
+  const { faceConsent } = parseBody(event);
+  if (typeof faceConsent !== "boolean") throw new Error("invalid_face_consent");
+  const profile = await persistedProfile(profileId);
+  if (!profile || profile.consent !== true) return json(event, 404, { error: "consented_profile_not_found" });
+  await database.send(new UpdateCommand({
+    TableName: tableName,
+    Key: { pk: `EVENT#${defaultEventId}`, sk: `PROFILE#${profileId}` },
+    UpdateExpression: "SET faceConsent = :consent, updatedAt = :updatedAt",
+    ExpressionAttributeValues: { ":consent": faceConsent, ":updatedAt": new Date().toISOString() }
+  }));
+  if (!faceConsent) {
+    const faces = await queryAll({
+      TableName: tableName,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: { ":pk": `PROFILE#${profileId}`, ":prefix": "FACE#" }
+    });
+    for (const face of faces) await deleteFace(event, profileId, face.faceId);
+  }
+  return json(event, 200, { profileId, faceConsent });
 }
 
 async function listProfiles(event) {
@@ -73,7 +271,7 @@ async function profileExists(profileId) {
 }
 
 async function createProfile(event) {
-  if (!adminToken || event.headers?.authorization !== `Bearer ${adminToken}`) {
+  if (!(await adminAuthorized(event))) {
     return json(event, 401, { error: "admin_authorization_required" });
   }
   const profile = normalizeProfile(parseBody(event));
@@ -128,6 +326,23 @@ export async function handler(event) {
 
   try {
     if (method === "GET" && parts[0] === "health") return json(event, 200, { service: "comunid-api", status: "ok", eventId: defaultEventId });
+    if (parts[0] === "admin") {
+      if (!(await adminAuthorized(event))) return json(event, 401, { error: "admin_authorization_required" });
+      if (method === "GET" && parts[1] === "session") return json(event, 200, { authorized: true, faceCollectionConfigured: Boolean(faceCollectionId), eventId: defaultEventId });
+      if (method === "GET" && parts[1] === "profiles" && !parts[2]) return managedProfiles(event);
+      if (method === "POST" && parts[1] === "profiles" && !parts[2]) return createProfile(event);
+      if (method === "PUT" && parts[1] === "profiles" && parts[2] && parts[3] === "face-consent") return updateFaceConsent(event, parts[2]);
+      if (method === "GET" && parts[1] === "profiles" && parts[2] && parts[3] === "faces" && !parts[4]) return profileFaces(event, parts[2]);
+      if (parts[1] === "faces" || parts[1] === "detect-faces" || parts[1] === "search-faces" || parts[3] === "faces") {
+        const unavailable = requireFaceCollection(event);
+        if (unavailable) return unavailable;
+      }
+      if (method === "POST" && parts[1] === "detect-faces") return detectFaces(event);
+      if (method === "POST" && parts[1] === "faces") return enrollFace(event);
+      if (method === "POST" && parts[1] === "search-faces") return searchFaces(event);
+      if (method === "DELETE" && parts[1] === "profiles" && parts[2] && parts[3] === "faces" && parts[4]) return deleteFace(event, parts[2], parts[4]);
+      return json(event, 404, { error: "not_found" });
+    }
     if (method === "GET" && parts[0] === "profiles" && !parts[1]) return listProfiles(event);
     if (method === "POST" && parts[0] === "profiles" && !parts[1]) return createProfile(event);
     if (method === "GET" && parts[0] === "profiles" && parts[1] && parts[2] === "qr") return profileQr(event, parts[1]);
@@ -138,7 +353,8 @@ export async function handler(event) {
   } catch (error) {
     console.error(error);
     const message = error instanceof Error ? error.message : "unexpected_error";
-    const clientError = ["invalid_json", "invalid_profile_role", "profile_name_required", "encounter_fields_required"].includes(message);
-    return json(event, clientError ? 400 : 500, { error: message });
+    const clientError = ["invalid_json", "invalid_profile_role", "profile_name_required", "encounter_fields_required", "invalid_image", "image_too_large", "profile_id_required", "invalid_face_consent"].includes(message);
+    const status = error.name === "ConditionalCheckFailedException" ? 409 : error.name === "InvalidParameterException" ? 422 : clientError ? 400 : 500;
+    return json(event, status, { error: status === 500 ? "unexpected_error" : message });
   }
 }

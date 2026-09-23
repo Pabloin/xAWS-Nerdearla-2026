@@ -93,7 +93,8 @@ function ProfileDetail({ profile, collected, onClose, onCollect }: {
   const [qrDataUrl, setQrDataUrl] = useState("");
 
   useEffect(() => {
-    QRCode.toDataURL(`https://comunid.app/b/${profile.id}`, {
+    const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+    QRCode.toDataURL(`${publicAppUrl.replace(/\/$/, "")}/b/${profile.id}`, {
       width: 320,
       margin: 1,
       color: { dark: "#101218", light: "#FFFFFF" }

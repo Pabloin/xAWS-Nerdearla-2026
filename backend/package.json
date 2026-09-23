@@ -9,6 +9,8 @@
   },
   "dependencies": {
     "@aws-sdk/client-dynamodb": "^3.658.1",
+    "@aws-sdk/client-rekognition": "^3.1138.0",
+    "@aws-sdk/client-secrets-manager": "^3.1138.0",
     "@aws-sdk/lib-dynamodb": "^3.658.1",
     "qrcode": "^1.5.4"
   },

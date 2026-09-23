@@ -44,8 +44,19 @@ jobs:
         env:
           TF_VAR_github_owner: ${{ github.repository_owner }}
           TF_VAR_github_repo: ${{ github.event.repository.name }}
+          TF_VAR_cloudflare_zone_id: ${{ secrets.COMUNID_CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COMUNID_CLOUDFLARE_API_TOKEN }}
+          TF_STATE_BUCKET: ${{ secrets.COMUNID_TERRAFORM_STATE_BUCKET }}
         run: |
-          terraform init -backend-config=backend.hcl
+          test -n "$TF_STATE_BUCKET"
+          test -n "$TF_VAR_cloudflare_zone_id"
+          test -n "$CLOUDFLARE_API_TOKEN"
+          terraform init \
+            -backend-config="bucket=$TF_STATE_BUCKET" \
+            -backend-config="key=comunid/production/terraform.tfstate" \
+            -backend-config="region=$AWS_REGION" \
+            -backend-config="encrypt=true" \
+            -backend-config="use_lockfile=true"
           terraform plan -out=tfplan
       - name: Reject destructive plan
         working-directory: ${{ env.TF_DIR }}
@@ -57,6 +68,9 @@ jobs:
           fi
       - name: Apply infrastructure
         working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_cloudflare_zone_id: ${{ secrets.COMUNID_CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.COMUNID_CLOUDFLARE_API_TOKEN }}
         run: terraform apply -auto-approve tfplan
       - name: Capture outputs
         id: resources
@@ -69,10 +83,15 @@ jobs:
       - name: Build application
         env:
           VITE_API_BASE_URL: ${{ steps.resources.outputs.api_url }}
+          VITE_APP_URL: https://mobile.comunid.app/
+          VITE_PUBLIC_APP_URL: https://mobile.comunid.app
+          VITE_HOME_URL: https://comunid.app/
           VITE_MOBILE_BASE: /app/
+          VITE_ADMIN_BASE: /admin/
         run: npm run build
       - run: npm --workspace @comunid/backend run package
-      - run: aws s3 sync front_home/dist "s3://${{ steps.resources.outputs.bucket }}" --delete --exclude 'app/*'
+      - run: aws s3 sync front_home/dist "s3://${{ steps.resources.outputs.bucket }}" --delete --exclude 'app/*' --exclude 'admin/*'
       - run: aws s3 sync front_mobile/dist "s3://${{ steps.resources.outputs.bucket }}/app" --delete
+      - run: aws s3 sync front_admin/dist "s3://${{ steps.resources.outputs.bucket }}/admin" --delete
       - run: aws lambda update-function-code --function-name "${{ steps.resources.outputs.lambda }}" --zip-file fileb://backend/dist/api.zip
       - run: aws cloudfront create-invalidation --distribution-id "${{ steps.resources.outputs.distribution }}" --paths "/*"

@@ -20,13 +20,14 @@ module "storage" {
 }
 
 module "apps" {
-  source           = "../apps"
-  project_name     = var.project_name
-  environment      = var.environment
-  domain_name      = var.domain_name
-  hosted_zone_name = var.hosted_zone_name
-  web_bucket_name  = "${local.name}-web-${data.aws_caller_identity.current.account_id}"
-  tags             = local.tags
+  source             = "../apps"
+  project_name       = var.project_name
+  environment        = var.environment
+  domain_name        = var.domain_name
+  additional_domains = var.additional_domains
+  cloudflare_zone_id = var.cloudflare_zone_id
+  web_bucket_name    = "${local.name}-web-${data.aws_caller_identity.current.account_id}"
+  tags               = local.tags
 }
 
 module "api" {
@@ -38,8 +39,8 @@ module "api" {
   table_arn         = module.storage.table_arn
   media_bucket_name = module.storage.media_bucket_name
   media_bucket_arn  = module.storage.media_bucket_arn
-  public_app_url    = "https://${var.domain_name}"
-  allowed_origins   = ["https://${var.domain_name}"]
+  public_app_url    = "https://${lookup(var.additional_domains, "mobile", var.domain_name)}"
+  allowed_origins   = concat([for domain in concat([var.domain_name], values(var.additional_domains)) : "https://${domain}"], var.environment == "staging" ? ["http://127.0.0.1:5192"] : [])
   default_event_id  = var.default_event_id
   tags              = local.tags
 }
