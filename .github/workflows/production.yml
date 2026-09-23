@@ -1,0 +1,76 @@
+name: Comunid Production
+
+on:
+  workflow_dispatch:
+    inputs:
+      deploy:
+        description: Deploy the tested release to production
+        type: boolean
+        required: true
+        default: false
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: comunid-production
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_DIR: terraform/environments/production
+
+jobs:
+  production:
+    if: inputs.deploy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: hashicorp/setup-terraform@v3
+      - run: npm ci
+      - run: npm run check
+      - run: npm --workspace @comunid/backend run package
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.COMUNID_PRODUCTION_INFRA_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repo: ${{ github.event.repository.name }}
+        run: |
+          terraform init -backend-config=backend.hcl
+          terraform plan -out=tfplan
+      - name: Reject destructive plan
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform show -json tfplan > tfplan.json
+          if jq -e '[.resource_changes[]?.change.actions | select(index("delete"))] | length > 0' tfplan.json; then
+            echo "Destructive infrastructure change rejected."
+            exit 1
+          fi
+      - name: Apply infrastructure
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve tfplan
+      - name: Capture outputs
+        id: resources
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          echo "api_url=$(terraform output -raw api_url)" >> "$GITHUB_OUTPUT"
+          echo "bucket=$(terraform output -raw web_bucket_name)" >> "$GITHUB_OUTPUT"
+          echo "distribution=$(terraform output -raw distribution_id)" >> "$GITHUB_OUTPUT"
+          echo "lambda=$(terraform output -raw lambda_name)" >> "$GITHUB_OUTPUT"
+      - name: Build application
+        env:
+          VITE_API_BASE_URL: ${{ steps.resources.outputs.api_url }}
+        run: npm run build
+      - run: npm --workspace @comunid/backend run package
+      - run: aws s3 sync apps/mobile/dist "s3://${{ steps.resources.outputs.bucket }}" --delete
+      - run: aws lambda update-function-code --function-name "${{ steps.resources.outputs.lambda }}" --zip-file fileb://backend/dist/api.zip
+      - run: aws cloudfront create-invalidation --distribution-id "${{ steps.resources.outputs.distribution }}" --paths "/*"

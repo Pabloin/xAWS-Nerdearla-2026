@@ -1,0 +1,5 @@
+export const demoProfiles = [
+  { id: "ana-cloud", name: "Ana Silva", role: "builder", title: "Cloud Community Organizer", city: "Buenos Aires", community: "AWS User Group Argentina", superpower: "Turning curious people into confident learners", askMeAbout: "Running your first study group", story: "Ana creates welcoming spaces where people can learn cloud technology together.", color: "#C8FF3D", consent: true },
+  { id: "mati-open", name: "Mati Rojas", role: "hero", title: "Open-source maintainer", city: "Córdoba", community: "Open Source LATAM", superpower: "Making hard technical ideas feel approachable", askMeAbout: "Contributing your first pull request", story: "Mati mentors new contributors and maintains tools used across the region.", color: "#56D8FF", consent: true },
+  { id: "luz-student", name: "Luz Benítez", role: "student", title: "Computer science student", city: "Rosario", community: "Nerdearla Student Crew", superpower: "Asking the question everyone else was thinking", askMeAbout: "Learning in public", story: "Luz shares her path into technology and helps other students find their first community.", color: "#FF6D8D", consent: true }
+];

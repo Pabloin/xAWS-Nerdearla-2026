@@ -1,0 +1,9 @@
+variable "project_name" { type = string }
+variable "environment" { type = string }
+variable "github_owner" { type = string }
+variable "github_repo" { type = string }
+variable "github_oidc_provider_arn" { type = string }
+variable "web_bucket_arn" { type = string }
+variable "distribution_arn" { type = string }
+variable "lambda_arn" { type = string }
+variable "tags" { type = map(string) }

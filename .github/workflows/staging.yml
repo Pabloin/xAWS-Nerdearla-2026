@@ -1,0 +1,104 @@
+name: Comunid Staging
+
+on:
+  workflow_dispatch:
+    inputs:
+      apply_infrastructure:
+        description: Apply the reviewed Terraform plan
+        type: boolean
+        default: false
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  id-token: write
+
+concurrency:
+  group: comunid-staging
+  cancel-in-progress: false
+
+env:
+  AWS_REGION: us-east-1
+  TF_DIR: terraform/environments/staging
+
+jobs:
+  validate-and-plan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: hashicorp/setup-terraform@v3
+      - run: npm ci
+      - run: npm run check
+      - run: npm --workspace @comunid/backend run package
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.COMUNID_STAGING_INFRA_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Terraform format
+        run: terraform fmt -check -recursive terraform
+      - name: Terraform initialize
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform init -backend-config=backend.hcl
+      - name: Terraform validate
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform validate
+      - name: Terraform plan
+        working-directory: ${{ env.TF_DIR }}
+        env:
+          TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_repo: ${{ github.event.repository.name }}
+        run: terraform plan -out=tfplan
+      - name: Reject destructive plan
+        working-directory: ${{ env.TF_DIR }}
+        run: |
+          terraform show -json tfplan > tfplan.json
+          if jq -e '[.resource_changes[]?.change.actions | select(index("delete"))] | length > 0' tfplan.json; then
+            echo "Destructive infrastructure change rejected."
+            exit 1
+          fi
+      - name: Apply infrastructure
+        if: github.event_name == 'workflow_dispatch' && inputs.apply_infrastructure
+        working-directory: ${{ env.TF_DIR }}
+        run: terraform apply -auto-approve tfplan
+
+  deploy-application:
+    if: github.event_name == 'push'
+    needs: validate-and-plan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.COMUNID_STAGING_APP_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - name: Resolve deployed resources
+        id: resources
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          API_ID=$(aws apigatewayv2 get-apis --query "Items[?Name=='comunid-staging-api'].ApiId | [0]" --output text)
+          DISTRIBUTION_ID=$(aws cloudfront list-distributions --query "DistributionList.Items[?Aliases.Items && contains(Aliases.Items, 'staging.comunid.app')].Id | [0]" --output text)
+          echo "api_url=https://${API_ID}.execute-api.${AWS_REGION}.amazonaws.com" >> "$GITHUB_OUTPUT"
+          echo "bucket=comunid-staging-web-${ACCOUNT_ID}" >> "$GITHUB_OUTPUT"
+          echo "distribution=${DISTRIBUTION_ID}" >> "$GITHUB_OUTPUT"
+          echo "lambda=comunid-staging-api" >> "$GITHUB_OUTPUT"
+      - name: Build application
+        env:
+          VITE_API_BASE_URL: ${{ steps.resources.outputs.api_url }}
+        run: npm run build
+      - run: npm --workspace @comunid/backend run package
+      - name: Deploy web
+        run: aws s3 sync apps/mobile/dist "s3://${{ steps.resources.outputs.bucket }}" --delete
+      - name: Deploy API
+        run: aws lambda update-function-code --function-name "${{ steps.resources.outputs.lambda }}" --zip-file fileb://backend/dist/api.zip
+      - name: Invalidate CDN
+        run: aws cloudfront create-invalidation --distribution-id "${{ steps.resources.outputs.distribution }}" --paths "/*"
