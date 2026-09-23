@@ -8,7 +8,8 @@ pnpm-debug.log*
 # Build output and caches
 dist/
 backend/dist/
-apps/mobile/dist/
+front_home/dist/
+front_mobile/dist/
 *.tsbuildinfo
 .vite/
 coverage/

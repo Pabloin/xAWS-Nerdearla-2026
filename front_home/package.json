@@ -1,0 +1,13 @@
+{
+  "name": "@comunid/home",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1 --port 5191",
+    "build": "vite build"
+  },
+  "devDependencies": {
+    "vite": "^8.3.0"
+  }
+}

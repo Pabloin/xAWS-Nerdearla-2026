@@ -3,12 +3,17 @@
   "private": true,
   "version": "0.1.0",
   "workspaces": [
-    "apps/mobile",
+    "front_home",
+    "front_mobile",
     "backend"
   ],
   "scripts": {
     "dev": "npm --workspace @comunid/mobile run dev",
-    "build": "npm --workspace @comunid/mobile run build",
+    "dev:home": "npm --workspace @comunid/home run dev",
+    "dev:mobile": "npm --workspace @comunid/mobile run dev",
+    "build": "npm run build:home && npm run build:mobile",
+    "build:home": "npm --workspace @comunid/home run build",
+    "build:mobile": "npm --workspace @comunid/mobile run build",
     "test": "npm --workspace @comunid/backend test && npm --workspace @comunid/mobile test",
     "check": "npm run test && npm run build"
   },

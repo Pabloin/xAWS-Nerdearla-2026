@@ -18,7 +18,8 @@ discover a builder
 ## Repository
 
 ```text
-apps/mobile/                  React + Vite mobile web application
+front_home/                   Public Comunid landing page (Vite)
+front_mobile/                 React + Vite event companion app
 backend/                      Node.js Lambda API and domain tests
 terraform/modules/apps/       S3, CloudFront, ACM, and Route 53
 terraform/modules/storage/    DynamoDB and private media bucket
@@ -31,16 +32,21 @@ terraform/environments/       isolated staging and production roots
 
 ## Local development
 
-Requires Node.js 20 or newer.
+Requires Node.js 20.19 or newer.
 
 ```bash
 npm install
-npm run dev
+npm run dev:home
 ```
 
-Open `http://127.0.0.1:5190`. The app works without AWS using curated profiles
-and local browser storage. Camera scanning requires browser permission; the scan
-screen includes demo badges for local development.
+Open `http://127.0.0.1:5191` to view the public landing page. In a second
+terminal, run `npm run dev:mobile` and open `http://127.0.0.1:5190` to explore
+the event app. The app works without AWS using curated profiles and local
+browser storage. Camera scanning requires browser permission; the scan screen
+includes demo badges for local development.
+
+The deployment keeps both frontends in one web bucket: the landing page is at
+the domain root and the mobile app is served from `/app/`.
 
 Run all checks:
 

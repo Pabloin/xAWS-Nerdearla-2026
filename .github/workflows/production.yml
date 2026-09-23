@@ -69,8 +69,10 @@ jobs:
       - name: Build application
         env:
           VITE_API_BASE_URL: ${{ steps.resources.outputs.api_url }}
+          VITE_MOBILE_BASE: /app/
         run: npm run build
       - run: npm --workspace @comunid/backend run package
-      - run: aws s3 sync apps/mobile/dist "s3://${{ steps.resources.outputs.bucket }}" --delete
+      - run: aws s3 sync front_home/dist "s3://${{ steps.resources.outputs.bucket }}" --delete --exclude 'app/*'
+      - run: aws s3 sync front_mobile/dist "s3://${{ steps.resources.outputs.bucket }}/app" --delete
       - run: aws lambda update-function-code --function-name "${{ steps.resources.outputs.lambda }}" --zip-file fileb://backend/dist/api.zip
       - run: aws cloudfront create-invalidation --distribution-id "${{ steps.resources.outputs.distribution }}" --paths "/*"
