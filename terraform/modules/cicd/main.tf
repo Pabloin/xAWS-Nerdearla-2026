@@ -38,3 +38,28 @@ resource "aws_iam_role_policy" "app" {
     ]
   })
 }
+
+resource "aws_iam_role" "infra" {
+  name               = "${var.project_name}-${var.environment}-github-infra"
+  assume_role_policy = data.aws_iam_policy_document.github_assume.json
+  tags               = var.tags
+}
+
+resource "aws_iam_role_policy" "infra" {
+  name = "manage-comunid-infrastructure"
+  role = aws_iam_role.infra.id
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "acm:*", "apigateway:*", "cloudfront:*", "dynamodb:*", "iam:*",
+          "lambda:*", "logs:*", "rekognition:*", "resource-groups:*",
+          "s3:*", "secretsmanager:*", "sts:GetCallerIdentity"
+        ]
+        Resource = "*"
+      }
+    ]
+  })
+}

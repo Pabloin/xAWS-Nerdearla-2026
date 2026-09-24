@@ -96,7 +96,8 @@ and builder.
 ## AWS environments
 
 The AWS profile for local read-only verification is `sebas`. Terraform is
-designed to run in GitHub Actions through OIDC, not from a laptop.
+designed to run in GitHub Actions through OIDC. The one-time OIDC bootstrap
+script is in `terraform-bootstrap/`.
 
 | Environment | Domain | State key |
 | --- | --- | --- |
@@ -105,19 +106,32 @@ designed to run in GitHub Actions through OIDC, not from a laptop.
 
 Before the first deployment:
 
-1. Keep `comunid.app` delegated to Cloudflare. Create a scoped Cloudflare API
+1. Run `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-github-oidc-role.sh create`
+   from the repository root. It creates the GitHub OIDC provider if needed and
+   a temporary bootstrap role restricted to this repository. Set the two
+   infrastructure role secrets it prints to GitHub Actions.
+2. Keep `comunid.app` delegated to Cloudflare. Create a scoped Cloudflare API
    token with Zone DNS Edit and Zone Read permissions for `comunid.app`, then
    add it as the `COMUNID_CLOUDFLARE_API_TOKEN` GitHub Actions secret. Add the
    zone ID as `COMUNID_CLOUDFLARE_ZONE_ID`. Terraform creates the ACM
    validation CNAMEs and CloudFront CNAMEs in Cloudflare. Keep these records
    set to DNS only so ACM validation and CloudFront domain checks can work.
-2. Create/configure the remote Terraform state bucket.
-   Add its name as the `COMUNID_TERRAFORM_STATE_BUCKET` GitHub secret.
-3. Confirm the GitHub OIDC provider exists in the AWS account.
-4. Add the repository/action role secrets documented in the workflows.
-5. Run the staging infrastructure workflow first and review its plan.
+3. Run `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-state-bucket.sh create`
+   and set the printed bucket name as the `COMUNID_TERRAFORM_STATE_BUCKET`
+   GitHub secret.
+4. Run the staging workflow with `apply_infrastructure` enabled. Review its
+   plan, then set `COMUNID_STAGING_INFRA_ROLE_ARN` to the `github_infra_role_arn`
+   Terraform output. Set `COMUNID_STAGING_APP_ROLE_ARN` to
+   `github_app_role_arn` for application deployment.
+5. Run production once staging is ready. Set
+   `COMUNID_PRODUCTION_INFRA_ROLE_ARN` to that environment's
+   `github_infra_role_arn` output.
+6. After both infrastructure secrets use the permanent Terraform roles, remove
+   the temporary role with
+   `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-github-oidc-role.sh destroy`.
 
-No AWS resources are created by the local build or test commands.
+The bootstrap script only creates the OIDC provider and temporary IAM role; it
+does not create application or Terraform state resources.
 
 ## Organizer studio setup
 

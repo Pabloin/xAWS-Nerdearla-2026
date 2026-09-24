@@ -80,6 +80,11 @@ jobs:
           echo "bucket=$(terraform output -raw web_bucket_name)" >> "$GITHUB_OUTPUT"
           echo "distribution=$(terraform output -raw distribution_id)" >> "$GITHUB_OUTPUT"
           echo "lambda=$(terraform output -raw lambda_name)" >> "$GITHUB_OUTPUT"
+          echo "app_role=$(terraform output -raw github_app_role_arn)" >> "$GITHUB_OUTPUT"
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ steps.resources.outputs.app_role }}
+          aws-region: ${{ env.AWS_REGION }}
       - name: Build application
         env:
           VITE_API_BASE_URL: ${{ steps.resources.outputs.api_url }}

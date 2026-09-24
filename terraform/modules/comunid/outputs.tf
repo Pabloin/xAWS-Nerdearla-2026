@@ -3,6 +3,7 @@ output "web_bucket_name" { value = module.apps.web_bucket_name }
 output "distribution_id" { value = module.apps.distribution_id }
 output "lambda_name" { value = module.api.lambda_name }
 output "github_app_role_arn" { value = module.cicd.app_role_arn }
+output "github_infra_role_arn" { value = module.cicd.infra_role_arn }
 output "domain_name" { value = module.apps.domain_name }
 output "face_collection_id" { value = module.api.face_collection_id }
 output "admin_secret_name" { value = module.api.admin_secret_name }
