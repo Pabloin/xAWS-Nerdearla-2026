@@ -15,7 +15,9 @@ variable "default_event_id" {
 }
 variable "lambda_zip_path" { type = string }
 variable "github_owner" { type = string }
+variable "github_owner_id" { type = string }
 variable "github_repo" { type = string }
+variable "github_repo_id" { type = string }
 variable "tags" {
   type    = map(string)
   default = {}

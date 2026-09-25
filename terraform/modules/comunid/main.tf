@@ -50,7 +50,9 @@ module "cicd" {
   project_name             = var.project_name
   environment              = var.environment
   github_owner             = var.github_owner
+  github_owner_id          = var.github_owner_id
   github_repo              = var.github_repo
+  github_repo_id           = var.github_repo_id
   github_oidc_provider_arn = local.oidc_provider_arn
   web_bucket_arn           = module.apps.web_bucket_arn
   distribution_arn         = module.apps.distribution_arn

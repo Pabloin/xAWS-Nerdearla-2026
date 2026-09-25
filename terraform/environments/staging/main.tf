@@ -6,5 +6,7 @@ module "comunid" {
   default_event_id   = "nerdearla-2026"
   lambda_zip_path    = var.lambda_zip_path
   github_owner       = var.github_owner
+  github_owner_id    = var.github_owner_id
   github_repo        = var.github_repo
+  github_repo_id     = var.github_repo_id
 }

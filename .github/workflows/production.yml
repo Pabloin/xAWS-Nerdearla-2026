@@ -43,7 +43,9 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         env:
           TF_VAR_github_owner: ${{ github.repository_owner }}
+          TF_VAR_github_owner_id: ${{ github.repository_owner_id }}
           TF_VAR_github_repo: ${{ github.event.repository.name }}
+          TF_VAR_github_repo_id: ${{ github.repository_id }}
           TF_VAR_cloudflare_zone_id: ${{ secrets.COMUNID_CLOUDFLARE_ZONE_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.COMUNID_CLOUDFLARE_API_TOKEN }}
           TF_STATE_BUCKET: ${{ secrets.COMUNID_TERRAFORM_STATE_BUCKET }}
