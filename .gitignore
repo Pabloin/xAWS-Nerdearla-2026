@@ -51,3 +51,6 @@ Thumbs.db
 
 # Personal event photos
 /01-grapsh/
+
+# Local brand references; deployed assets live in each frontend's public directory
+/02-brand/
