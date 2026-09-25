@@ -26,6 +26,8 @@ jobs:
   validate-and-plan:
     if: github.event_name != 'push' || !contains(github.event.head_commit.message, '[skip-app-deploy]')
     runs-on: ubuntu-latest
+    outputs:
+      app_role: ${{ steps.app_role.outputs.arn }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,6 +56,10 @@ jobs:
             -backend-config="region=$AWS_REGION" \
             -backend-config="encrypt=true" \
             -backend-config="use_lockfile=true"
+      - name: Resolve application role
+        id: app_role
+        working-directory: ${{ env.TF_DIR }}
+        run: echo "arn=$(terraform output -raw github_app_role_arn)" >> "$GITHUB_OUTPUT"
       - name: Terraform validate
         working-directory: ${{ env.TF_DIR }}
         run: terraform validate
@@ -99,7 +105,7 @@ jobs:
       - run: npm ci
       - uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.COMUNID_STAGING_APP_ROLE_ARN }}
+          role-to-assume: ${{ needs.validate-and-plan.outputs.app_role }}
           aws-region: ${{ env.AWS_REGION }}
       - name: Resolve deployed resources
         id: resources
