@@ -3,8 +3,8 @@ set -euo pipefail
 
 readonly project_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 readonly tf_dir="${project_dir}/terraform/environments/production"
-readonly expected_account="402349693900"
-readonly profile="${AWS_PROFILE_NAME:-402349693900_AdministratorAccess}"
+readonly expected_account="442809140287"
+readonly profile="${AWS_PROFILE_NAME:-sebas}"
 readonly region="us-east-1"
 readonly state_bucket="comunid-terraform-state-${expected_account}"
 

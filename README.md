@@ -125,7 +125,7 @@ client secret in the frontend; the Terraform client is public and has no secret.
 
 ## AWS environments
 
-The production AWS profile is `402349693900_AdministratorAccess`. Terraform can
+The production AWS profile is `sebas` (account `442809140287`). Terraform can
 run locally with this profile or in GitHub Actions through OIDC. The one-time
 OIDC bootstrap script is in `terraform-bootstrap/`.
 
@@ -137,13 +137,13 @@ For a local production deployment like Grace2Speech, set
 `CLOUDFLARE_API_TOKEN`, `TF_VAR_cloudflare_zone_id`, and the four
 `TF_VAR_github_*` values required by Terraform, then run
 `./scripts/deploy-production.sh`. The script verifies AWS account
-`402349693900`, checks tests and builds, rejects a plan containing deletions,
+`442809140287`, checks tests and builds, rejects a plan containing deletions,
 applies Terraform, and publishes the three frontends and API. It never targets
 staging.
 
 Before the first production deployment through GitHub Actions:
 
-1. Run `AWS_PROFILE=402349693900_AdministratorAccess ./terraform-bootstrap/bootstrap-github-oidc-role.sh create`
+1. Run `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-github-oidc-role.sh create`
    from the repository root. It creates the GitHub OIDC provider if needed and
    a temporary bootstrap role restricted to this repository. Set the two
    infrastructure role secrets it prints to GitHub Actions.
@@ -153,7 +153,7 @@ Before the first production deployment through GitHub Actions:
    zone ID as `COMUNID_CLOUDFLARE_ZONE_ID`. Terraform creates the ACM
    validation CNAMEs and CloudFront CNAMEs in Cloudflare. Keep these records
    set to DNS only so ACM validation and CloudFront domain checks can work.
-3. Run `AWS_PROFILE=402349693900_AdministratorAccess ./terraform-bootstrap/bootstrap-state-bucket.sh create`
+3. Run `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-state-bucket.sh create`
    and set the printed bucket name as the `COMUNID_TERRAFORM_STATE_BUCKET`
    GitHub secret.
 4. Run the production workflow with `deploy` enabled. Set
@@ -161,7 +161,7 @@ Before the first production deployment through GitHub Actions:
    `github_infra_role_arn` output after the first apply.
 5. After the infrastructure secret uses the permanent Terraform role, remove
    the temporary role with
-   `AWS_PROFILE=402349693900_AdministratorAccess ./terraform-bootstrap/bootstrap-github-oidc-role.sh destroy`.
+   `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-github-oidc-role.sh destroy`.
 
 The bootstrap script only creates the OIDC provider and temporary IAM role; it
 does not create application or Terraform state resources.
