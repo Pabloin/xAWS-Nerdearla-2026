@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import ReactDOM from "react-dom/client";
 import {
   ArrowLeft,
@@ -31,6 +31,17 @@ import {
   type AttendeeSession,
 } from "./auth";
 import {
+  createGuest,
+  listGuestEncounters,
+  readGuestSession,
+  recordGuestEncounter,
+  refreshGuest,
+  removeGuestContact,
+  saveGuestSession,
+  setGuestContact,
+  type GuestSession,
+} from "./guest";
+import {
   collectEncounter,
   profileIdFromQr,
   questProgress,
@@ -42,6 +53,7 @@ import "./styles.css";
 
 type View =
   | "welcome"
+  | "guest-entry"
   | "login"
   | "discover"
   | "scan"
@@ -49,7 +61,6 @@ type View =
   | "success"
   | "passport";
 const encounterKey = "comunid:encounters";
-const startedKey = "comunid:started";
 const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(
   /\/$/,
   "",
@@ -97,20 +108,22 @@ function Brand() {
 }
 
 function App() {
-  const [view, setView] = useState<View>(() =>
-    authEnabled
-      ? "welcome"
-      : localStorage.getItem(startedKey)
-        ? "discover"
-        : "welcome",
-  );
+  const [view, setView] = useState<View>("welcome");
   const [authMode, setAuthMode] = useState<"login" | "signup">("login");
-  const [authReady, setAuthReady] = useState(!authEnabled);
+  const [authReady, setAuthReady] = useState(false);
   const [session, setSession] = useState<AttendeeSession | null>(null);
+  const [guest, setGuest] = useState<GuestSession | null>(readGuestSession);
+  const [guestName, setGuestName] = useState("");
+  const [guestBusy, setGuestBusy] = useState(false);
+  const [guestError, setGuestError] = useState("");
+  const [contactEmail, setContactEmail] = useState("");
+  const [contactConsent, setContactConsent] = useState(false);
+  const [contactBusy, setContactBusy] = useState(false);
+  const [contactMessage, setContactMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [profiles, setProfiles] = useState<BuilderProfile[]>(demoProfiles);
   const [encounters, setEncounters] = useState<Encounter[]>(() =>
-    authEnabled ? [] : readEncounters(),
+    apiBaseUrl ? [] : readEncounters(),
   );
   const [pending, setPending] = useState<BuilderProfile | null>(null);
   const [selected, setSelected] = useState<BuilderProfile | null>(null);
@@ -130,19 +143,43 @@ function App() {
   const collectedProfiles = profiles.filter((profile) =>
     collectedIds.has(profile.id),
   );
+  const rewardUnlocked = collectedProfiles.length >= 5;
   useEffect(() => {
-    if (!authEnabled)
+    setContactEmail(guest?.guest.email ?? "");
+  }, [guest?.guest.email]);
+  useEffect(() => {
+    if (!apiBaseUrl)
       localStorage.setItem(encounterKey, JSON.stringify(encounters));
   }, [encounters]);
   useEffect(() => {
-    if (!authEnabled) return;
     let active = true;
     currentSession()
-      .then((current) => {
+      .then(async (current) => {
         if (!active) return;
         setSession(current);
-        setView(current ? "discover" : "welcome");
-        setAuthReady(true);
+        if (current) {
+          setView("discover");
+        } else {
+          const storedGuest = readGuestSession();
+          if (storedGuest) {
+            try {
+              const verifiedGuest = await refreshGuest(storedGuest, apiBaseUrl);
+              if (!active) return;
+              setGuest(verifiedGuest);
+              saveGuestSession(verifiedGuest);
+              setView("discover");
+            } catch {
+              if (!active) return;
+              setGuest(null);
+              saveGuestSession(null);
+              setAuthMessage("Tu acceso de invitado venció. Creá uno nuevo para continuar.");
+              setView("welcome");
+            }
+          } else {
+            setView("welcome");
+          }
+        }
+        if (active) setAuthReady(true);
       })
       .catch(() => {
         if (active) {
@@ -155,19 +192,20 @@ function App() {
     };
   }, []);
   useEffect(() => {
-    if (!authEnabled || !session || !apiBaseUrl) return;
+    if ((!session && !guest) || !apiBaseUrl) return;
     let active = true;
-    accessToken()
-      .then((token) =>
-        fetch(`${apiBaseUrl}/me/encounters`, {
-          headers: { authorization: `Bearer ${token}` },
-        }),
-      )
-      .then((response) =>
-        response.ok
-          ? response.json()
-          : Promise.reject(new Error("No pudimos cargar tu pasaporte.")),
-      )
+    const load = session
+      ? accessToken().then((token) =>
+          fetch(`${apiBaseUrl}/me/encounters`, {
+            headers: { authorization: `Bearer ${token}` },
+          }).then((response) =>
+            response.ok
+              ? response.json()
+              : Promise.reject(new Error("No pudimos cargar tu pasaporte.")),
+          ),
+        )
+      : listGuestEncounters(guest!, apiBaseUrl);
+    load
       .then((data) => {
         if (!active) return;
         setEncounters(
@@ -193,7 +231,7 @@ function App() {
           );
       });
     return () => { active = false; };
-  }, [session]);
+  }, [session, guest?.token]);
   useEffect(() => {
     if (!apiBaseUrl) return;
     fetch(`${apiBaseUrl}/profiles`)
@@ -205,7 +243,7 @@ function App() {
       .catch(() => undefined);
   }, []);
   useEffect(() => {
-    if (deepLinkHandled.current || (authEnabled && !session)) return;
+    if (deepLinkHandled.current || (!session && !guest)) return;
     const id = profileIdFromQr(window.location.href);
     const profile = profiles.find((item) => item.id === id);
     if (profile) {
@@ -213,7 +251,7 @@ function App() {
       setPending(profile);
       setView("selfie");
     }
-  }, [profiles, session]);
+  }, [profiles, session, guest]);
   function stopCamera() {
     if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -226,19 +264,39 @@ function App() {
     stopCamera();
     setMessage("");
     setView(
-      authEnabled && !session && next !== "welcome" && next !== "login"
-        ? "login"
+      !session && !guest && !["welcome", "login", "guest-entry"].includes(next)
+        ? "guest-entry"
         : next,
     );
     window.scrollTo(0, 0);
   }
   function start() {
-    if (authEnabled) {
-      setAuthMode("signup");
-      go("login");
-    } else {
-      localStorage.setItem(startedKey, "1");
-      go("discover");
+    if (guest) go("discover");
+    else go("guest-entry");
+  }
+  async function beginAsGuest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setGuestBusy(true);
+    setGuestError("");
+    try {
+      if (authEnabled && !apiBaseUrl) throw new Error("La API no está configurada.");
+      const created = await createGuest(guestName, apiBaseUrl);
+      saveGuestSession(created);
+      setGuest(created);
+      setSession(null);
+      setEncounters([]);
+      setContactEmail("");
+      setContactConsent(false);
+      setView("discover");
+      window.scrollTo(0, 0);
+    } catch (error) {
+      setGuestError(
+        error instanceof Error && !error.message.startsWith("guest_api_")
+          ? error.message
+          : "No pudimos crear tu pasaporte. Intentá de nuevo.",
+      );
+    } finally {
+      setGuestBusy(false);
     }
   }
   async function authenticated() {
@@ -249,6 +307,7 @@ function App() {
     }
     setAuthMessage("");
     setSession(current);
+    setEncounters([]);
     setView("discover");
     window.scrollTo(0, 0);
   }
@@ -257,9 +316,41 @@ function App() {
       await logout();
       setSession(null);
       setEncounters([]);
-      go("welcome");
+      setView(guest ? "discover" : "welcome");
     } catch {
       setAuthMessage("No pudimos cerrar la sesión. Intentá de nuevo.");
+    }
+  }
+  async function submitContact(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!guest || !rewardUnlocked || !contactConsent) return;
+    setContactBusy(true);
+    setContactMessage("");
+    try {
+      const updated = await setGuestContact(guest, apiBaseUrl, contactEmail);
+      saveGuestSession(updated);
+      setGuest(updated);
+      setContactMessage("Listo. Guardamos tu correo para novedades de la comunidad.");
+    } catch {
+      setContactMessage("No pudimos guardar tu correo. Intentá de nuevo.");
+    } finally {
+      setContactBusy(false);
+    }
+  }
+  async function withdrawContact() {
+    if (!guest) return;
+    setContactBusy(true);
+    setContactMessage("");
+    try {
+      const updated = await removeGuestContact(guest, apiBaseUrl);
+      saveGuestSession(updated);
+      setGuest(updated);
+      setContactConsent(false);
+      setContactMessage("Quitamos tu correo. Tu pasaporte sigue disponible.");
+    } catch {
+      setContactMessage("No pudimos quitar tu correo. Intentá de nuevo.");
+    } finally {
+      setContactBusy(false);
     }
   }
   function badgeFound(payload: string) {
@@ -346,7 +437,7 @@ function App() {
   async function finishEncounter() {
     if (!pending) return;
     try {
-      if (authEnabled) {
+      if (session && authEnabled) {
         if (!apiBaseUrl) throw new Error("La API no está configurada.");
         const token = await accessToken();
         const response = await fetch(`${apiBaseUrl}/encounters`, {
@@ -361,6 +452,8 @@ function App() {
           throw new Error(
             "Encontramos el badge, pero no pudimos guardar el encuentro. Probá de nuevo.",
           );
+      } else if (guest && apiBaseUrl) {
+        await recordGuestEncounter(guest, apiBaseUrl, pending.id);
       }
       setEncounters((current) => collectEncounter(current, pending.id));
       go("success");
@@ -372,7 +465,7 @@ function App() {
       );
     }
   }
-  const inApp = view !== "welcome" && view !== "login";
+  const inApp = !["welcome", "login", "guest-entry"].includes(view);
   if (!authReady)
     return (
       <div className="app-shell auth-loading" role="status">
@@ -427,6 +520,73 @@ function App() {
             <button className="primary-button" type="button" onClick={start}>
               Empezar <ChevronRight size={20} />
             </button>
+            {authEnabled && (
+              <button
+                className="text-button"
+                type="button"
+                onClick={() => {
+                  setAuthMode("login");
+                  go("login");
+                }}
+              >
+                Ya tengo cuenta <ChevronRight size={17} />
+              </button>
+            )}
+          </div>
+        </main>
+      )}
+      {view === "guest-entry" && (
+        <main className="login-screen guest-entry-screen">
+          <button
+            className="icon-button login-back"
+            type="button"
+            onClick={() => go("welcome")}
+            aria-label="Volver"
+          >
+            <ArrowLeft size={22} />
+          </button>
+          <Brand />
+          <div className="guest-entry-art" aria-hidden="true">
+            <div className="guest-entry-orbit" />
+            <span className="guest-entry-emblem">
+              <Users size={56} />
+              <Sparkles size={20} />
+            </span>
+          </div>
+          <div className="login-hero guest-entry-copy">
+            <span className="eyebrow">TU PASAPORTE EMPIEZA ACÁ</span>
+            <h1>
+              Entrá como <em>invitado</em>
+            </h1>
+            <p>Decinos cómo te llamás y salí a conocer gente. Sin correo ni contraseña.</p>
+          </div>
+          <form onSubmit={(event) => void beginAsGuest(event)}>
+            <label htmlFor="guest-name">Tu nombre</label>
+            <div className="input-wrap">
+              <Users size={20} />
+              <input
+                id="guest-name"
+                type="text"
+                value={guestName}
+                onChange={(event) => setGuestName(event.target.value)}
+                placeholder="¿Cómo te llamás?"
+                autoComplete="given-name"
+                minLength={2}
+                maxLength={60}
+                required
+                disabled={guestBusy}
+              />
+            </div>
+            <p className="guest-entry-note">
+              Guardamos tu nombre y encuentros para el pasaporte. Tu acceso queda en este navegador.
+            </p>
+            {guestError && <p className="auth-error" role="alert">{guestError}</p>}
+            <button className="primary-button" type="submit" disabled={guestBusy}>
+              {guestBusy ? "Creando pasaporte…" : "Empezar a explorar"}
+              <ChevronRight size={20} />
+            </button>
+          </form>
+          {authEnabled && (
             <button
               className="text-button"
               type="button"
@@ -435,9 +595,9 @@ function App() {
                 go("login");
               }}
             >
-              Ya tengo cuenta <ChevronRight size={17} />
+              Ya tengo una cuenta <ChevronRight size={17} />
             </button>
-          </div>
+          )}
         </main>
       )}
       {view === "login" &&
@@ -542,7 +702,7 @@ function App() {
       )}
       {view === "discover" && (
         <main className="page discover-page">
-          <span className="eyebrow">LA COMUNIDAD EN VIVO</span>
+          <span className="eyebrow">{guest && !session ? `HOLA, ${guest.guest.name.toUpperCase()}` : "LA COMUNIDAD EN VIVO"}</span>
           <h1>
             Explorá <em>el evento</em>
           </h1>
@@ -635,6 +795,13 @@ function App() {
           <div className="passport-ticket">
             <div className="ticket-brand">
               <Brand />
+              {guest && !session && (
+                <small>
+                  PARTICIPANTE INVITADO
+                  <br />
+                  <b>{guest.guest.name}</b>
+                </small>
+              )}
               <small>
                 EVENTO
                 <br />
@@ -708,16 +875,61 @@ function App() {
           <div className="reward-card">
             <Gift size={36} />
             <span>
-              <small>PRÓXIMO PREMIO</small>
+              <small>{rewardUnlocked ? "PREMIO DESBLOQUEADO" : "PRÓXIMO PREMIO"}</small>
               <strong>
-                {Math.max(0, 5 - collectedProfiles.length)
+                {!rewardUnlocked
                   ? `${5 - collectedProfiles.length} encuentros`
                   : "¡Desbloqueado!"}
               </strong>
-              <small>Seguí explorando para desbloquearlo.</small>
+              <small>{rewardUnlocked ? "Tu pasaporte ya tiene cinco encuentros." : "Seguí explorando para desbloquearlo."}</small>
             </span>
             <ChevronRight size={20} />
           </div>
+          {guest && !session && rewardUnlocked && (
+            <section className="guest-contact-card" aria-labelledby="guest-contact-title">
+              <span className="eyebrow">SEGUÍ EN CONTACTO</span>
+              <h2 id="guest-contact-title">La comunidad sigue después del evento.</h2>
+              <p>Si querés recibir novedades, dejá tu correo. Es opcional: tu premio y tu pasaporte no dependen de eso.</p>
+              {guest.guest.contactConsent && guest.guest.email ? (
+                <div className="guest-contact-saved">
+                  <span><Check size={18} /> {guest.guest.email}</span>
+                  <button type="button" onClick={() => void withdrawContact()} disabled={contactBusy}>Quitar correo</button>
+                </div>
+              ) : (
+                <form onSubmit={(event) => void submitContact(event)}>
+                  <label htmlFor="guest-contact-email">Correo electrónico</label>
+                  <div className="input-wrap">
+                    <Mail size={20} />
+                    <input
+                      id="guest-contact-email"
+                      type="email"
+                      value={contactEmail}
+                      onChange={(event) => setContactEmail(event.target.value)}
+                      placeholder="tu@email.com"
+                      autoComplete="email"
+                      required
+                      disabled={contactBusy}
+                    />
+                  </div>
+                  <label className="guest-contact-consent">
+                    <input
+                      type="checkbox"
+                      checked={contactConsent}
+                      onChange={(event) => setContactConsent(event.target.checked)}
+                      required
+                      disabled={contactBusy}
+                    />
+                    Quiero recibir novedades de la comunidad por correo.
+                  </label>
+                  <button className="primary-button" type="submit" disabled={contactBusy || !contactConsent}>
+                    {contactBusy ? "Guardando…" : "Quiero seguir en contacto"}
+                    <ChevronRight size={18} />
+                  </button>
+                </form>
+              )}
+              {contactMessage && <p className="guest-contact-message" role="status">{contactMessage}</p>}
+            </section>
+          )}
           {collectedProfiles.length > 0 && (
             <section className="passport-people">
               <h2>Tus encuentros</h2>
@@ -812,7 +1024,7 @@ function App() {
           </div>
           {!authEnabled && <div className="demo-badges" id="demo-badges">
             <small>BADGES DE PRUEBA</small>
-            {profiles.slice(0, 3).map((profile) => (
+            {profiles.map((profile) => (
               <button
                 key={profile.id}
                 type="button"
@@ -966,8 +1178,8 @@ function App() {
           <div className="success-reward">
             <Gift size={27} />
             <span>
-              <strong>¡Nuevo sello desbloqueado!</strong>
-              <small>Sumás un sello a tu pasaporte.</small>
+              <strong>{rewardUnlocked ? "¡Premio desbloqueado!" : "¡Nuevo sello desbloqueado!"}</strong>
+              <small>{rewardUnlocked ? "Visitá tu pasaporte para verlo." : "Sumás un sello a tu pasaporte."}</small>
             </span>
             <Sparkles size={19} />
           </div>

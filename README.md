@@ -43,8 +43,10 @@ npm run dev:home
 Open `http://127.0.0.1:5191` to view the public landing page. In a second
 terminal, run `npm run dev:mobile` and open `http://127.0.0.1:5190` to explore
 the event app. The app works without AWS using curated profiles and local
-browser storage. With Cognito configured, attendees sign in inside the app and
-their encounters are stored under their Cognito identity. Camera scanning
+browser storage. Attendees can start as guests with only a name; with an API
+configured, their guest profile and encounters are stored in DynamoDB and a
+private access token remains in that browser. Existing Cognito users can still
+sign in inside the app. Camera scanning
 requires browser permission; the scan screen includes demo badges for local
 development.
 
@@ -76,6 +78,9 @@ The Lambda exposes:
 - `POST /encounters`
 - `GET /me/encounters`
 - `GET /players/{id}/encounters` (only for the authenticated player)
+- `POST /guests` — creates a guest passport from a name
+- `GET /guests/me`, `GET /guests/me/encounters`, `POST /guests/me/encounters` — guest access using its private token
+- `PUT /guests/me/contact`, `DELETE /guests/me/contact` — optional email opt-in after five encounters, and withdrawal
 - `GET /admin/session` and `GET /admin/profiles`
 - `POST /admin/profiles`
 - `PUT /admin/profiles/{id}/face-consent` — records or withdraws facial consent
@@ -89,6 +94,7 @@ The DynamoDB access pattern uses one table:
 ```text
 PK=EVENT#{eventId}   SK=PROFILE#{profileId}
 PK=PLAYER#{playerId} SK=ENCOUNTER#{eventId}#{profileId}
+PK=GUEST#{guestId}   SK=PROFILE
 PK=PROFILE#{profileId} SK=FACE#{faceId}
 PK=REKOGNITION_USER#{userId} SK=PROFILE
 ```
@@ -98,11 +104,20 @@ and builder. The attendee routes require a Cognito access token. API Gateway
 validates it, and the Lambda uses its `sub` claim as the player ID; client-supplied
 player IDs are ignored.
 
+Guest tokens are generated randomly, returned once to the browser, and stored only in the
+participant's browser; DynamoDB stores a SHA-256 digest. The same encounter
+keys keep repeat scans idempotent. The API checks five distinct encounters
+before saving a guest email, and stores contact consent separately. No email
+is required to participate or unlock the passport reward. Losing browser data
+currently means losing access to that guest passport; email is not a recovery
+credential and the app does not send messages automatically.
+
 ## Attendee sign-in
 
 Terraform creates a separate Cognito User Pool and public app client in each
-environment. The mobile app uses Amplify Auth's SRP flow, so sign-in, account
-creation, email confirmation, and password reset stay inside the Comunid UI.
+environment. Cognito is an optional account path; guest participation requires
+only a name. The mobile app uses Amplify Auth's SRP flow for accounts, so sign-in,
+account creation, email confirmation, and password reset stay inside the Comunid UI.
 Google and Apple sign-in need separate identity-provider credentials and are not
 configured. The organizer studio continues to use its separate admin token.
 

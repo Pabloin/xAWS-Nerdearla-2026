@@ -1,4 +1,4 @@
-import { timingSafeEqual } from "node:crypto";
+import { createHash, randomBytes, randomUUID, timingSafeEqual } from "node:crypto";
 import { DynamoDBClient } from "@aws-sdk/client-dynamodb";
 import { DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCommand, UpdateCommand } from "@aws-sdk/lib-dynamodb";
 import { AssociateFacesCommand, CreateUserCommand, DeleteFacesCommand, DetectFacesCommand, DisassociateFacesCommand, IndexFacesCommand, RekognitionClient, SearchUsersByImageCommand } from "@aws-sdk/client-rekognition";
@@ -51,6 +51,131 @@ function routeParts(event) {
 function authenticatedPlayerId(event) {
   const claims = event.requestContext?.authorizer?.jwt?.claims;
   return claims?.token_use === "access" && typeof claims.sub === "string" && claims.sub ? claims.sub : "";
+}
+
+function guestPlayerId(guestId) {
+  return `guest:${guestId}`;
+}
+
+function guestPublic(item) {
+  return {
+    id: item.guestId,
+    name: item.name,
+    email: item.contactConsent === true ? item.email : null,
+    contactConsent: item.contactConsent === true,
+    eventId: item.eventId
+  };
+}
+
+async function guestFromRequest(event) {
+  const authorization = event.headers?.authorization || event.headers?.Authorization || "";
+  const match = /^Guest ([0-9a-f-]{36})\.([A-Za-z0-9_-]{43})$/.exec(authorization);
+  if (!match) return null;
+  const result = await database.send(new GetCommand({
+    TableName: tableName,
+    Key: { pk: `GUEST#${match[1]}`, sk: "PROFILE" }
+  }));
+  const item = result.Item;
+  if (!item || item.eventId !== defaultEventId || !item.tokenHash) return null;
+  const actual = createHash("sha256").update(match[2]).digest();
+  const expected = Buffer.from(item.tokenHash, "hex");
+  return expected.length === actual.length && timingSafeEqual(expected, actual) ? item : null;
+}
+
+async function createGuest(event) {
+  const name = String(parseBody(event)?.name || "").trim().replace(/\s+/g, " ");
+  if (name.length < 2 || name.length > 60 || /[\x00-\x1f\x7f]/.test(name)) {
+    return json(event, 422, { error: "guest_name_invalid" });
+  }
+  const guestId = randomUUID();
+  const secret = randomBytes(32).toString("base64url");
+  const tokenHash = createHash("sha256").update(secret).digest("hex");
+  const item = {
+    pk: `GUEST#${guestId}`, sk: "PROFILE", entityType: "GUEST", guestId,
+    eventId: defaultEventId, name, tokenHash, contactConsent: false,
+    createdAt: new Date().toISOString()
+  };
+  await database.send(new PutCommand({
+    TableName: tableName, Item: item,
+    ConditionExpression: "attribute_not_exists(pk) AND attribute_not_exists(sk)"
+  }));
+  return json(event, 201, { guest: guestPublic(item), token: `${guestId}.${secret}` });
+}
+
+async function guestEncounters(guestId) {
+  return queryAll({
+    TableName: tableName,
+    KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+    ExpressionAttributeValues: {
+      ":pk": `PLAYER#${guestPlayerId(guestId)}`,
+      ":prefix": `ENCOUNTER#${defaultEventId}#`
+    }
+  });
+}
+
+async function guestRoute(event, method, parts) {
+  if (method === "POST" && parts.length === 1) return createGuest(event);
+  const guest = await guestFromRequest(event);
+  if (!guest) return json(event, 401, { error: "guest_authentication_required" });
+  if (method === "GET" && parts[1] === "me" && parts.length === 2) {
+    return json(event, 200, { guest: guestPublic(guest) });
+  }
+  if (parts[1] === "me" && parts[2] === "encounters" && parts.length === 3) {
+    if (method === "GET") {
+      return json(event, 200, { eventId: defaultEventId, encounters: await guestEncounters(guest.guestId) });
+    }
+    if (method === "POST") {
+      const input = parseBody(event);
+      const keys = encounterKeys({
+        eventId: defaultEventId,
+        playerId: guestPlayerId(guest.guestId),
+        profileId: input.profileId
+      });
+      if (!(await profileExists(keys.profileId))) return json(event, 404, { error: "profile_not_found" });
+      const timestamp = new Date().toISOString();
+      await database.send(new PutCommand({
+        TableName: tableName,
+        Item: { ...keys, entityType: "ENCOUNTER", collectedAt: timestamp },
+        ConditionExpression: "attribute_not_exists(pk) AND attribute_not_exists(sk)"
+      })).catch((error) => {
+        if (error.name !== "ConditionalCheckFailedException") throw error;
+      });
+      return json(event, 201, { ...keys, collectedAt: timestamp });
+    }
+  }
+  if (parts[1] === "me" && parts[2] === "contact" && parts.length === 3) {
+    if (method === "PUT") {
+      const input = parseBody(event);
+      const email = String(input?.email || "").trim().toLowerCase();
+      if (input?.consent !== true || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return json(event, 422, { error: "contact_consent_and_email_required" });
+      }
+      if ((await guestEncounters(guest.guestId)).length < 5) {
+        return json(event, 403, { error: "reward_not_unlocked" });
+      }
+      const result = await database.send(new UpdateCommand({
+        TableName: tableName,
+        Key: { pk: guest.pk, sk: guest.sk },
+        UpdateExpression: "SET email = :email, contactConsent = :consent, updatedAt = :updatedAt",
+        ExpressionAttributeValues: { ":email": email, ":consent": true, ":updatedAt": new Date().toISOString() },
+        ConditionExpression: "attribute_exists(pk) AND attribute_exists(sk)",
+        ReturnValues: "ALL_NEW"
+      }));
+      return json(event, 200, { guest: guestPublic(result.Attributes) });
+    }
+    if (method === "DELETE") {
+      const result = await database.send(new UpdateCommand({
+        TableName: tableName,
+        Key: { pk: guest.pk, sk: guest.sk },
+        UpdateExpression: "REMOVE email SET contactConsent = :consent, updatedAt = :updatedAt",
+        ExpressionAttributeValues: { ":consent": false, ":updatedAt": new Date().toISOString() },
+        ConditionExpression: "attribute_exists(pk) AND attribute_exists(sk)",
+        ReturnValues: "ALL_NEW"
+      }));
+      return json(event, 200, { guest: guestPublic(result.Attributes) });
+    }
+  }
+  return json(event, 404, { error: "not_found" });
 }
 
 function profileFromItem(item, includeFaceConsent = false) {
@@ -337,6 +462,7 @@ export async function handler(event) {
 
   try {
     if (method === "GET" && parts[0] === "health") return json(event, 200, { service: "comunid-api", status: "ok", eventId: defaultEventId });
+    if (parts[0] === "guests") return guestRoute(event, method, parts);
     if (parts[0] === "admin") {
       if (!(await adminAuthorized(event))) return json(event, 401, { error: "admin_authorization_required" });
       if (method === "GET" && parts[1] === "session") return json(event, 200, { authorized: true, faceCollectionConfigured: Boolean(faceCollectionId), eventId: defaultEventId });
