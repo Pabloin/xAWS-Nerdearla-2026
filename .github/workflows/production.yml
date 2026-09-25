@@ -83,6 +83,8 @@ jobs:
           echo "distribution=$(terraform output -raw distribution_id)" >> "$GITHUB_OUTPUT"
           echo "lambda=$(terraform output -raw lambda_name)" >> "$GITHUB_OUTPUT"
           echo "app_role=$(terraform output -raw github_app_role_arn)" >> "$GITHUB_OUTPUT"
+          echo "cognito_user_pool_id=$(terraform output -raw cognito_user_pool_id)" >> "$GITHUB_OUTPUT"
+          echo "cognito_client_id=$(terraform output -raw cognito_client_id)" >> "$GITHUB_OUTPUT"
       - uses: aws-actions/configure-aws-credentials@v4
         with:
           role-to-assume: ${{ steps.resources.outputs.app_role }}
@@ -90,12 +92,17 @@ jobs:
       - name: Build application
         env:
           VITE_API_BASE_URL: ${{ steps.resources.outputs.api_url }}
+          VITE_COGNITO_USER_POOL_ID: ${{ steps.resources.outputs.cognito_user_pool_id }}
+          VITE_COGNITO_CLIENT_ID: ${{ steps.resources.outputs.cognito_client_id }}
           VITE_APP_URL: https://mobile.comunid.app/
           VITE_PUBLIC_APP_URL: https://mobile.comunid.app
           VITE_HOME_URL: https://comunid.app/
           VITE_MOBILE_BASE: /app/
           VITE_ADMIN_BASE: /admin/
-        run: npm run build
+        run: |
+          test -n "$VITE_COGNITO_USER_POOL_ID"
+          test -n "$VITE_COGNITO_CLIENT_ID"
+          npm run build
       - run: npm --workspace @comunid/backend run package
       - run: aws s3 sync front_home/dist "s3://${{ steps.resources.outputs.bucket }}" --delete --exclude 'app/*' --exclude 'admin/*'
       - run: aws s3 sync front_mobile/dist "s3://${{ steps.resources.outputs.bucket }}/app" --delete

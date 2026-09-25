@@ -27,7 +27,7 @@ terraform/modules/storage/    DynamoDB and private media bucket
 terraform/modules/api/        Lambda, IAM, and API Gateway
 terraform/modules/cicd/       GitHub OIDC application role
 terraform/modules/comunid/    reusable architecture composition
-terraform/environments/       isolated staging and production roots
+terraform/environments/       production root (legacy staging config retained)
 .github/workflows/            CI and deployment foundations
 ```
 
@@ -43,8 +43,10 @@ npm run dev:home
 Open `http://127.0.0.1:5191` to view the public landing page. In a second
 terminal, run `npm run dev:mobile` and open `http://127.0.0.1:5190` to explore
 the event app. The app works without AWS using curated profiles and local
-browser storage. Camera scanning requires browser permission; the scan screen
-includes demo badges for local development.
+browser storage. With Cognito configured, attendees sign in inside the app and
+their encounters are stored under their Cognito identity. Camera scanning
+requires browser permission; the scan screen includes demo badges for local
+development.
 
 Run `npm run dev:admin` for the organizer studio at `http://127.0.0.1:5192`.
 Enter a deployed API URL and the admin token to use face detection. The studio
@@ -72,7 +74,8 @@ The Lambda exposes:
 - `GET /profiles/{id}`
 - `GET /profiles/{id}/qr`
 - `POST /encounters`
-- `GET /players/{id}/encounters`
+- `GET /me/encounters`
+- `GET /players/{id}/encounters` (only for the authenticated player)
 - `GET /admin/session` and `GET /admin/profiles`
 - `POST /admin/profiles`
 - `PUT /admin/profiles/{id}/face-consent` — records or withdraws facial consent
@@ -91,22 +94,56 @@ PK=REKOGNITION_USER#{userId} SK=PROFILE
 ```
 
 That encounter key makes a repeated scan idempotent for the same player, event,
-and builder.
+and builder. The attendee routes require a Cognito access token. API Gateway
+validates it, and the Lambda uses its `sub` claim as the player ID; client-supplied
+player IDs are ignored.
+
+## Attendee sign-in
+
+Terraform creates a separate Cognito User Pool and public app client in each
+environment. The mobile app uses Amplify Auth's SRP flow, so sign-in, account
+creation, email confirmation, and password reset stay inside the Comunid UI.
+Google and Apple sign-in need separate identity-provider credentials and are not
+configured. The organizer studio continues to use its separate admin token.
+
+The production deployment passes the Terraform outputs
+`cognito_user_pool_id` and `cognito_client_id` into the mobile build. It applies
+production infrastructure before building and publishing the app. The staging
+workflow is disabled; deployment targets production only.
+
+To test the Cognito flow locally against production, create
+`front_mobile/.env.local` with the deployed production pool ID and client ID:
+
+```dotenv
+VITE_COGNITO_USER_POOL_ID=us-east-1_example
+VITE_COGNITO_CLIENT_ID=example
+VITE_API_BASE_URL=https://example.execute-api.us-east-1.amazonaws.com
+```
+
+Without those variables the app runs in local demo mode. Do not put a Cognito
+client secret in the frontend; the Terraform client is public and has no secret.
 
 ## AWS environments
 
-The AWS profile for local read-only verification is `sebas`. Terraform is
-designed to run in GitHub Actions through OIDC. The one-time OIDC bootstrap
-script is in `terraform-bootstrap/`.
+The production AWS profile is `402349693900_AdministratorAccess`. Terraform can
+run locally with this profile or in GitHub Actions through OIDC. The one-time
+OIDC bootstrap script is in `terraform-bootstrap/`.
 
 | Environment | Domain | State key |
 | --- | --- | --- |
-| Staging | `staging.comunid.app` | `comunid/staging/terraform.tfstate` |
 | Production | `comunid.app` | `comunid/production/terraform.tfstate` |
 
-Before the first deployment:
+For a local production deployment like Grace2Speech, set
+`CLOUDFLARE_API_TOKEN`, `TF_VAR_cloudflare_zone_id`, and the four
+`TF_VAR_github_*` values required by Terraform, then run
+`./scripts/deploy-production.sh`. The script verifies AWS account
+`402349693900`, checks tests and builds, rejects a plan containing deletions,
+applies Terraform, and publishes the three frontends and API. It never targets
+staging.
 
-1. Run `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-github-oidc-role.sh create`
+Before the first production deployment through GitHub Actions:
+
+1. Run `AWS_PROFILE=402349693900_AdministratorAccess ./terraform-bootstrap/bootstrap-github-oidc-role.sh create`
    from the repository root. It creates the GitHub OIDC provider if needed and
    a temporary bootstrap role restricted to this repository. Set the two
    infrastructure role secrets it prints to GitHub Actions.
@@ -116,19 +153,15 @@ Before the first deployment:
    zone ID as `COMUNID_CLOUDFLARE_ZONE_ID`. Terraform creates the ACM
    validation CNAMEs and CloudFront CNAMEs in Cloudflare. Keep these records
    set to DNS only so ACM validation and CloudFront domain checks can work.
-3. Run `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-state-bucket.sh create`
+3. Run `AWS_PROFILE=402349693900_AdministratorAccess ./terraform-bootstrap/bootstrap-state-bucket.sh create`
    and set the printed bucket name as the `COMUNID_TERRAFORM_STATE_BUCKET`
    GitHub secret.
-4. Run the staging workflow with `apply_infrastructure` enabled. Review its
-   plan, then set `COMUNID_STAGING_INFRA_ROLE_ARN` to the `github_infra_role_arn`
-   Terraform output. Set `COMUNID_STAGING_APP_ROLE_ARN` to
-   `github_app_role_arn` for application deployment.
-5. Run production once staging is ready. Set
-   `COMUNID_PRODUCTION_INFRA_ROLE_ARN` to that environment's
-   `github_infra_role_arn` output.
-6. After both infrastructure secrets use the permanent Terraform roles, remove
+4. Run the production workflow with `deploy` enabled. Set
+   `COMUNID_PRODUCTION_INFRA_ROLE_ARN` to the production
+   `github_infra_role_arn` output after the first apply.
+5. After the infrastructure secret uses the permanent Terraform role, remove
    the temporary role with
-   `AWS_PROFILE=sebas ./terraform-bootstrap/bootstrap-github-oidc-role.sh destroy`.
+   `AWS_PROFILE=402349693900_AdministratorAccess ./terraform-bootstrap/bootstrap-github-oidc-role.sh destroy`.
 
 The bootstrap script only creates the OIDC provider and temporary IAM role; it
 does not create application or Terraform state resources.

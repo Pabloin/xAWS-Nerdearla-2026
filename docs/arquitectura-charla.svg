@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080" role="img" aria-labelledby="title description">
+<title id="title">Arquitectura de comunid.app — Nerdearla 2026</title>
+<desc id="description">Participantes y organizadores usan aplicaciones web servidas por CloudFront y S3. API Gateway y Lambda conectan DynamoDB, Rekognition y Secrets Manager. GitHub Actions y Terraform despliegan la solución.</desc>
+<defs>
+  <linearGradient id="background" x2="1" y2="1"><stop stop-color="#0d1726"/><stop offset="1" stop-color="#13263d"/></linearGradient>
+  <linearGradient id="cloud" x2="1" y2="1"><stop stop-color="#152b41"/><stop offset="1" stop-color="#112235"/></linearGradient>
+  <marker id="tip" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M1 1 L9 5 L1 9" fill="none" stroke="#82c8ff" stroke-width="2"/></marker>
+  <marker id="softTip" markerWidth="9" markerHeight="9" refX="7" refY="4.5" orient="auto"><path d="M1 1 L8 4.5 L1 8" fill="none" stroke="#8ba6bd" stroke-width="1.8"/></marker>
+  <style>
+    text{font-family:Arial,Helvetica,sans-serif} .eyebrow{font-size:18px;letter-spacing:4px;font-weight:700;fill:#98ceff} .brand{font-size:55px;font-weight:800;letter-spacing:-1.5px;fill:#f6f9ff}.brandApp{fill:#8dd5ff}.subtitle{font-size:21px;fill:#b8c9d9}.section{font-size:18px;letter-spacing:2.6px;font-weight:700;fill:#a3d6ff}.name{font-size:21px;font-weight:700;fill:#f9fbff}.detail{font-size:16px;fill:#c2d0dd}.small{font-size:14px;fill:#9eb1c4}.icon{font-size:22px;font-weight:700;fill:white}.badgeText{font-size:14px;fill:#bcd1e3}.panel{fill:#111e30;stroke:#3b5874;stroke-width:1.7}.cloud{fill:url(#cloud);stroke:#466582;stroke-width:1.7}.card{fill:#1a2c43;stroke:#3e5b77;stroke-width:1.6}.badge{fill:#233b55}.flow{fill:none;stroke:#82c8ff;stroke-width:3;marker-end:url(#tip)}.support{fill:none;stroke:#8ba6bd;stroke-width:2;stroke-dasharray:7 7;marker-end:url(#softTip)}.thin{fill:none;stroke:#6385a5;stroke-width:1.5}.label{font-size:14px;font-weight:700;letter-spacing:1px;fill:#9ed4ff}.note{font-size:16px;fill:#d4e4f1}
+  </style>
+</defs>
+<rect width="1920" height="1080" fill="url(#background)"/>
+<rect width="1920" height="6" fill="#84cbff"/>
+
+<text x="70" y="65" class="eyebrow" >NERDEARLA 2026 · ARQUITECTURA</text>
+<text x="70" y="121" class="brand">comunid<tspan class="brandApp">.app</tspan></text>
+<text x="72" y="156" class="subtitle" >La comunidad hecha app: encuentros reales, QR y búsqueda visual</text>
+<rect x="60" y="220" width="273" height="650" rx="28" class="panel" />
+<text x="87" y="260" class="section" >PERSONAS</text>
+<rect x="82" y="308" width="229" height="189" rx="18" class="card" />
+<circle cx="120" cy="350" r="25" fill="#183a59" stroke="#76c5ff" stroke-width="1.8"/>
+<text x="120" y="358" class="icon" text-anchor="middle">▯</text>
+<text x="156" y="346" class="name" >Participante</text>
+<text x="156" y="372" class="detail" >Web móvil</text>
+<text x="106" y="413" class="detail" >Escanea badges QR</text>
+<text x="106" y="439" class="detail" >Registra encuentros</text>
+<text x="106" y="465" class="detail" >Completa su pasaporte</text>
+<rect x="82" y="550" width="229" height="189" rx="18" class="card" />
+<circle cx="120" cy="592" r="25" fill="#183a59" stroke="#76c5ff" stroke-width="1.8"/>
+<text x="120" y="600" class="icon" text-anchor="middle">▣</text>
+<text x="156" y="588" class="name" >Organizador</text>
+<text x="156" y="614" class="detail" >Panel web</text>
+<text x="106" y="655" class="detail" >Gestiona perfiles</text>
+<text x="106" y="681" class="detail" >Valida consentimiento</text>
+<text x="106" y="707" class="detail" >Indexa rostros</text>
+<rect x="352" y="190" width="1508" height="680" rx="32" class="cloud" />
+<text x="385" y="230" class="section" >AWS CLOUD · STAGING / PRODUCCIÓN</text>
+<text x="1825" y="230" class="small" text-anchor="end">Infraestructura como código: Terraform</text>
+<path d="M385 244 H1827" class="thin"/>
+<text x="390" y="278" class="section" >BORDE Y ENTREGA</text>
+<text x="682" y="278" class="section" >FRONTENDS</text>
+<text x="982" y="278" class="section" >API SERVERLESS</text>
+<text x="1282" y="278" class="section" >DATOS E IA</text>
+<text x="1587" y="278" class="section" >OPERACIÓN</text>
+<rect x="390" y="326" width="250" height="146" rx="18" class="card" />
+<rect x="409" y="346" width="58" height="58" rx="12" fill="#734cff"/>
+<text x="438" y="384" class="icon" text-anchor="middle">CF</text>
+<text x="481" y="372" class="name" >CloudFront</text>
+<text x="481" y="398" class="detail" >Una distribución</text>
+<text x="481" y="421" class="detail" >para 3 interfaces</text>
+<rect x="409" y="433" width="212" height="25" rx="9" class="badge" />
+<text x="421" y="451" class="badgeText" >HTTPS · OAC · rutas por dominio</text>
+<rect x="390" y="560" width="250" height="105" rx="18" class="card" />
+<rect x="409" y="580" width="58" height="58" rx="12" fill="#f18a30"/>
+<text x="438" y="618" class="icon" text-anchor="middle">DNS</text>
+<text x="481" y="606" class="name" >Cloudflare</text>
+<text x="481" y="632" class="detail" >comunid.app · DNS</text>
+<rect x="682" y="326" width="250" height="146" rx="18" class="card" />
+<rect x="701" y="346" width="58" height="58" rx="12" fill="#78a70d"/>
+<text x="730" y="384" class="icon" text-anchor="middle">S3</text>
+<text x="773" y="372" class="name" >Amazon S3</text>
+<text x="773" y="398" class="detail" >Bucket web privado</text>
+<text x="773" y="421" class="detail" >Home · móvil · admin</text>
+<rect x="701" y="433" width="212" height="25" rx="9" class="badge" />
+<text x="713" y="451" class="badgeText" >React/Vite · HTML · JS</text>
+<rect x="682" y="560" width="250" height="105" rx="18" class="card" />
+<rect x="701" y="580" width="58" height="58" rx="12" fill="#e64265"/>
+<text x="730" y="618" class="icon" text-anchor="middle">TLS</text>
+<text x="773" y="606" class="name" >AWS ACM</text>
+<text x="773" y="632" class="detail" >Certificado TLS</text>
+<rect x="982" y="326" width="250" height="146" rx="18" class="card" />
+<rect x="1001" y="346" width="58" height="58" rx="12" fill="#8953ef"/>
+<text x="1030" y="384" class="icon" text-anchor="middle">API</text>
+<text x="1073" y="372" class="name" >API Gateway</text>
+<text x="1073" y="398" class="detail" >HTTP API</text>
+<text x="1073" y="421" class="detail" >Rutas y límites</text>
+<rect x="1001" y="433" width="212" height="25" rx="9" class="badge" />
+<text x="1013" y="451" class="badgeText" >Perfiles · QR · encuentros</text>
+<rect x="982" y="560" width="250" height="146" rx="18" class="card" />
+<rect x="1001" y="580" width="58" height="58" rx="12" fill="#f17a13"/>
+<text x="1030" y="618" class="icon" text-anchor="middle">λ</text>
+<text x="1073" y="606" class="name" >AWS Lambda</text>
+<text x="1073" y="632" class="detail" >Node.js 20</text>
+<text x="1073" y="655" class="detail" >Lógica y validaciones</text>
+<rect x="1001" y="667" width="212" height="25" rx="9" class="badge" />
+<text x="1013" y="685" class="badgeText" >API compartida</text>
+<rect x="1282" y="318" width="260" height="132" rx="18" class="card" />
+<rect x="1301" y="338" width="58" height="58" rx="12" fill="#b448dc"/>
+<text x="1330" y="376" class="icon" text-anchor="middle">DB</text>
+<text x="1373" y="364" class="name" >DynamoDB</text>
+<text x="1373" y="390" class="detail" >Perfiles · encuentros</text>
+<text x="1373" y="413" class="detail" >Consentimiento · IDs</text>
+<rect x="1282" y="493" width="260" height="145" rx="18" class="card" />
+<rect x="1301" y="513" width="58" height="58" rx="12" fill="#08a995"/>
+<text x="1330" y="551" class="icon" text-anchor="middle">AI</text>
+<text x="1373" y="539" class="name" >Rekognition</text>
+<text x="1373" y="565" class="detail" >Detectar · indexar</text>
+<text x="1373" y="588" class="detail" >Buscar rostros</text>
+<rect x="1301" y="599" width="222" height="25" rx="9" class="badge" />
+<text x="1313" y="617" class="badgeText" >Colección por entorno</text>
+<rect x="1282" y="698" width="260" height="112" rx="18" class="card" />
+<rect x="1301" y="718" width="58" height="58" rx="12" fill="#c84464"/>
+<text x="1330" y="756" class="icon" text-anchor="middle">KEY</text>
+<text x="1373" y="744" class="name" >Secrets Manager</text>
+<text x="1373" y="770" class="detail" >Token del panel admin</text>
+<rect x="1587" y="326" width="236" height="126" rx="18" class="card" />
+<rect x="1606" y="346" width="58" height="58" rx="12" fill="#d62888"/>
+<text x="1635" y="384" class="icon" text-anchor="middle">LOG</text>
+<text x="1678" y="372" class="name" >CloudWatch</text>
+<text x="1678" y="398" class="detail" >Logs de Lambda</text>
+<text x="1678" y="421" class="detail" >Diagnóstico</text>
+<rect x="1587" y="530" width="236" height="126" rx="18" class="card" />
+<rect x="1606" y="550" width="58" height="58" rx="12" fill="#d94558"/>
+<text x="1635" y="588" class="icon" text-anchor="middle">IAM</text>
+<text x="1678" y="576" class="name" >AWS IAM</text>
+<text x="1678" y="602" class="detail" >Roles y permisos</text>
+<text x="1678" y="625" class="detail" >de ejecución</text>
+<path d="M311 403 H380" class="flow"/>
+<path d="M311 644 H352 V438 H380" class="flow"/>
+<text x="323" y="387" class="label" >HTTPS</text>
+<path d="M640 399 H672" class="flow"/>
+<path d="M932 399 H972" class="flow"/>
+<text x="939" y="382" class="label" >API HTTPS</text>
+<path d="M1107 472 V550" class="flow"/>
+<path d="M1232 590 H1256 V384 H1272" class="flow"/>
+<path d="M1232 619 H1272" class="flow"/>
+<path d="M1232 656 H1256 V754 H1272" class="flow"/>
+<text x="1244" y="472" class="label" >METADATOS</text>
+<text x="1245" y="604" class="label" >ROSTROS</text>
+<path d="M515 560 V482" class="support"/>
+<path d="M682 609 H657 V488 H548 V482" class="support"/>
+<text x="399" y="540" class="label" >DNS</text>
+<text x="659" y="545" class="label" >TLS</text>
+<text x="1595" y="712" class="small" >Observabilidad y acceso controlado</text>
+<text x="1595" y="735" class="small" >S3 de medios: provisionado; sin flujo</text>
+<text x="1595" y="756" class="small" >activo en esta versión</text>
+<rect x="386" y="781" width="830" height="56" rx="13" class="badge" />
+<text x="405" y="805" class="label" >PRIVACIDAD</text>
+<text x="516" y="805" class="note" >La selfie y la foto grupal original quedan en el navegador.</text>
+<text x="516" y="827" class="small" >El reconocimiento facial se usa en el panel organizador.</text>
+<rect x="60" y="908" width="1800" height="116" rx="25" class="panel" />
+<text x="86" y="945" class="section" >ENTREGA CONTINUA</text>
+<rect x="335" y="932" width="264" height="67" rx="18" class="card" />
+<rect x="349" y="947" width="40" height="40" rx="9" fill="#31557e"/>
+<text x="369" y="973" class="badgeText" text-anchor="middle">{}</text>
+<text x="402" y="959" class="name" >GitHub Actions</text>
+<text x="402" y="984" class="small" >CI · build · despliegue</text>
+<rect x="650" y="932" width="265" height="67" rx="18" class="card" />
+<rect x="664" y="947" width="40" height="40" rx="9" fill="#d23f58"/>
+<text x="684" y="973" class="badgeText" text-anchor="middle">OIDC</text>
+<text x="717" y="959" class="name" >OIDC + AWS STS</text>
+<text x="717" y="984" class="small" >Credenciales temporales</text>
+<rect x="967" y="932" width="280" height="67" rx="18" class="card" />
+<rect x="981" y="947" width="40" height="40" rx="9" fill="#d23f58"/>
+<text x="1001" y="973" class="badgeText" text-anchor="middle">IAM</text>
+<text x="1034" y="959" class="name" >Roles IAM</text>
+<text x="1034" y="984" class="small" >Infraestructura · aplicación</text>
+<rect x="1301" y="932" width="488" height="67" rx="18" class="card" />
+<rect x="1315" y="947" width="40" height="40" rx="9" fill="#7955c8"/>
+<text x="1335" y="973" class="badgeText" text-anchor="middle">TF</text>
+<text x="1368" y="959" class="name" >Terraform + deploy</text>
+<text x="1368" y="984" class="small" >S3 · Lambda · invalidación CloudFront</text>
+<path d="M600 966 H640" class="flow"/>
+<path d="M916 966 H957" class="flow"/>
+<path d="M1248 966 H1291" class="flow"/>
+<text x="72" y="1054" class="small" >Fuente técnica: terraform/modules y backend/functions/api.mjs · Diagrama de arquitectura, no inventario de recursos desplegados</text>
+<text x="1840" y="1054" class="small" text-anchor="end">comunid.app · Nerdearla 2026</text>
+</svg>

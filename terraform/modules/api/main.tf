@@ -90,6 +90,27 @@ resource "aws_apigatewayv2_route" "default" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda.id}"
 }
 
+resource "aws_apigatewayv2_authorizer" "attendee" {
+  api_id           = aws_apigatewayv2_api.http.id
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  name             = "${var.project_name}-${var.environment}-attendee"
+
+  jwt_configuration {
+    audience = [var.cognito_client_id]
+    issuer   = var.cognito_issuer
+  }
+}
+
+resource "aws_apigatewayv2_route" "authenticated_encounters" {
+  for_each           = toset(["POST /encounters", "GET /me/encounters", "GET /players/{playerId}/encounters"])
+  api_id             = aws_apigatewayv2_api.http.id
+  route_key          = each.value
+  target             = "integrations/${aws_apigatewayv2_integration.lambda.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.attendee.id
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http.id
   name        = "$default"

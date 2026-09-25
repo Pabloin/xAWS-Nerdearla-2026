@@ -48,6 +48,11 @@ function routeParts(event) {
   return String(event.rawPath || "/").split("/").filter(Boolean).map(decodeURIComponent);
 }
 
+function authenticatedPlayerId(event) {
+  const claims = event.requestContext?.authorizer?.jwt?.claims;
+  return claims?.token_use === "access" && typeof claims.sub === "string" && claims.sub ? claims.sub : "";
+}
+
 function profileFromItem(item, includeFaceConsent = false) {
   const { pk, sk, entityType, eventId, createdAt, updatedAt, faceConsent, ...profile } = item;
   return includeFaceConsent ? { ...profile, faceConsent: faceConsent === true } : profile;
@@ -286,8 +291,10 @@ async function createProfile(event) {
 }
 
 async function createEncounter(event) {
+  const playerId = authenticatedPlayerId(event);
+  if (!playerId) return json(event, 401, { error: "authentication_required" });
   const input = parseBody(event);
-  const keys = encounterKeys({ eventId: input.eventId || defaultEventId, playerId: input.playerId, profileId: input.profileId });
+  const keys = encounterKeys({ eventId: defaultEventId, playerId, profileId: input.profileId });
   if (!(await profileExists(keys.profileId))) return json(event, 404, { error: "profile_not_found" });
   const timestamp = new Date().toISOString();
   await database.send(new PutCommand({
@@ -301,6 +308,10 @@ async function createEncounter(event) {
 }
 
 async function listEncounters(event, playerId) {
+  const authenticatedId = authenticatedPlayerId(event);
+  if (!authenticatedId) return json(event, 401, { error: "authentication_required" });
+  if (playerId && playerId !== authenticatedId) return json(event, 403, { error: "forbidden" });
+  playerId = authenticatedId;
   const result = await database.send(new QueryCommand({
     TableName: tableName,
     KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
@@ -348,6 +359,7 @@ export async function handler(event) {
     if (method === "GET" && parts[0] === "profiles" && parts[1] && parts[2] === "qr") return profileQr(event, parts[1]);
     if (method === "GET" && parts[0] === "profiles" && parts[1]) return getProfile(event, parts[1]);
     if (method === "POST" && parts[0] === "encounters") return createEncounter(event);
+    if (method === "GET" && parts[0] === "me" && parts[1] === "encounters") return listEncounters(event);
     if (method === "GET" && parts[0] === "players" && parts[1] && parts[2] === "encounters") return listEncounters(event, parts[1]);
     return json(event, 404, { error: "not_found" });
   } catch (error) {

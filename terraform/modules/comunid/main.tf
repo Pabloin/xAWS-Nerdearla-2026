@@ -10,6 +10,13 @@ locals {
   oidc_provider_arn = "arn:aws:iam::${data.aws_caller_identity.current.account_id}:oidc-provider/token.actions.githubusercontent.com"
 }
 
+module "auth" {
+  source       = "../auth"
+  project_name = var.project_name
+  environment  = var.environment
+  tags         = local.tags
+}
+
 module "storage" {
   source            = "../storage"
   project_name      = var.project_name
@@ -40,8 +47,10 @@ module "api" {
   media_bucket_name = module.storage.media_bucket_name
   media_bucket_arn  = module.storage.media_bucket_arn
   public_app_url    = "https://${lookup(var.additional_domains, "mobile", var.domain_name)}"
-  allowed_origins   = concat([for domain in concat([var.domain_name], values(var.additional_domains)) : "https://${domain}"], var.environment == "staging" ? ["http://127.0.0.1:5192"] : [])
+  allowed_origins   = concat([for domain in concat([var.domain_name], values(var.additional_domains)) : "https://${domain}"], var.environment == "staging" ? ["http://127.0.0.1:5190", "http://127.0.0.1:5192"] : [])
   default_event_id  = var.default_event_id
+  cognito_issuer    = module.auth.issuer
+  cognito_client_id = module.auth.client_id
   tags              = local.tags
 }
 

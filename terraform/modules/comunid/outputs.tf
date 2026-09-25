@@ -7,3 +7,6 @@ output "github_infra_role_arn" { value = module.cicd.infra_role_arn }
 output "domain_name" { value = module.apps.domain_name }
 output "face_collection_id" { value = module.api.face_collection_id }
 output "admin_secret_name" { value = module.api.admin_secret_name }
+output "cognito_user_pool_id" { value = module.auth.user_pool_id }
+output "cognito_client_id" { value = module.auth.client_id }
+output "cognito_issuer" { value = module.auth.issuer }

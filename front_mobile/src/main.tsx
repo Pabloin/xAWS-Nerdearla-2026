@@ -2,358 +2,1137 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import ReactDOM from "react-dom/client";
 import {
   ArrowLeft,
+  BookOpen,
   Camera,
   Check,
+  ChevronRight,
   Compass,
+  Gift,
+  ImagePlus,
   LockKeyhole,
+  Mail,
   MapPin,
   QrCode,
   ScanLine,
   Sparkles,
   Trophy,
   Users,
-  X
+  X,
 } from "lucide-react";
 import QRCode from "qrcode";
 import jsQR from "jsqr";
 import { demoProfiles, demoQuests } from "./demo-data";
+import { AuthScreen } from "./AuthScreen";
+import {
+  accessToken,
+  authEnabled,
+  currentSession,
+  logout,
+  type AttendeeSession,
+} from "./auth";
 import {
   collectEncounter,
   profileIdFromQr,
   questProgress,
   roleLabels,
   type BuilderProfile,
-  type Encounter
+  type Encounter,
 } from "./domain";
 import "./styles.css";
 
-type View = "discover" | "scan" | "collection";
-
-const storageKey = "comunid:encounters";
-const playerStorageKey = "comunid:player-id";
-const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-
-function readStoredEncounters(): Encounter[] {
+type View =
+  | "welcome"
+  | "login"
+  | "discover"
+  | "scan"
+  | "selfie"
+  | "success"
+  | "passport";
+const encounterKey = "comunid:encounters";
+const startedKey = "comunid:started";
+const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(
+  /\/$/,
+  "",
+);
+function readEncounters(): Encounter[] {
   try {
-    const value = JSON.parse(localStorage.getItem(storageKey) ?? "[]");
+    const value = JSON.parse(localStorage.getItem(encounterKey) ?? "[]");
     return Array.isArray(value) ? value : [];
   } catch {
     return [];
   }
 }
-
-function getPlayerId(): string {
-  const current = localStorage.getItem(playerStorageKey);
-  if (current) return current;
-  const created = crypto.randomUUID();
-  localStorage.setItem(playerStorageKey, created);
-  return created;
-}
-
-function initials(name: string) {
-  return name
-    .split(/\s+/)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join("")
-    .toUpperCase();
-}
-
-function ProfileAvatar({ profile, large = false }: { profile: BuilderProfile; large?: boolean }) {
+function Avatar({
+  profile,
+  large = false,
+}: {
+  profile: BuilderProfile;
+  large?: boolean;
+}) {
   return (
-    <div className={`avatar ${large ? "avatar-large" : ""}`} style={{ "--accent": profile.color } as React.CSSProperties}>
-      <span>{initials(profile.name)}</span>
-      <i aria-hidden="true" />
+    <span
+      className={`avatar ${large ? "avatar-large" : ""}`}
+      style={{ "--accent": profile.color } as React.CSSProperties}
+    >
+      {profile.name
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join("")
+        .toUpperCase()}
+    </span>
+  );
+}
+function Brand() {
+  return (
+    <span className="brand-wrap" aria-label="comunid.app">
+      <span className="brand-icon">
+        <img src="/brand/logo-comunid-app.png" alt="" />
+      </span>
+      <span className="brand-word">
+        comunid<span>.app</span>
+      </span>
+    </span>
+  );
+}
+
+function App() {
+  const [view, setView] = useState<View>(() =>
+    authEnabled
+      ? "welcome"
+      : localStorage.getItem(startedKey)
+        ? "discover"
+        : "welcome",
+  );
+  const [authMode, setAuthMode] = useState<"login" | "signup">("login");
+  const [authReady, setAuthReady] = useState(!authEnabled);
+  const [session, setSession] = useState<AttendeeSession | null>(null);
+  const [authMessage, setAuthMessage] = useState("");
+  const [profiles, setProfiles] = useState<BuilderProfile[]>(demoProfiles);
+  const [encounters, setEncounters] = useState<Encounter[]>(() =>
+    authEnabled ? [] : readEncounters(),
+  );
+  const [pending, setPending] = useState<BuilderProfile | null>(null);
+  const [selected, setSelected] = useState<BuilderProfile | null>(null);
+  const [selfie, setSelfie] = useState<string | null>(null);
+  const [cameraOpen, setCameraOpen] = useState(false);
+  const [message, setMessage] = useState("");
+  const [email, setEmail] = useState("");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+  const frameRef = useRef<number | null>(null);
+  const deepLinkHandled = useRef(false);
+  const collectedIds = useMemo(
+    () => new Set(encounters.map((item) => item.builderId)),
+    [encounters],
+  );
+  const collectedProfiles = profiles.filter((profile) =>
+    collectedIds.has(profile.id),
+  );
+  useEffect(() => {
+    if (!authEnabled)
+      localStorage.setItem(encounterKey, JSON.stringify(encounters));
+  }, [encounters]);
+  useEffect(() => {
+    if (!authEnabled) return;
+    let active = true;
+    currentSession()
+      .then((current) => {
+        if (!active) return;
+        setSession(current);
+        setView(current ? "discover" : "welcome");
+        setAuthReady(true);
+      })
+      .catch(() => {
+        if (active) {
+          setAuthMessage("No pudimos verificar tu sesión.");
+          setAuthReady(true);
+        }
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+  useEffect(() => {
+    if (!authEnabled || !session || !apiBaseUrl) return;
+    let active = true;
+    accessToken()
+      .then((token) =>
+        fetch(`${apiBaseUrl}/me/encounters`, {
+          headers: { authorization: `Bearer ${token}` },
+        }),
+      )
+      .then((response) =>
+        response.ok
+          ? response.json()
+          : Promise.reject(new Error("No pudimos cargar tu pasaporte.")),
+      )
+      .then((data) => {
+        if (!active) return;
+        setEncounters(
+          Array.isArray(data.encounters)
+            ? data.encounters.map(
+                (item: {
+                  profileId: string;
+                  collectedAt: string;
+                  eventId: string;
+                }) => ({
+                  builderId: item.profileId,
+                  collectedAt: item.collectedAt,
+                  eventId: item.eventId,
+                }),
+              )
+            : [],
+        );
+      })
+      .catch(() => {
+        if (active)
+          setAuthMessage(
+            "No pudimos cargar tu pasaporte. Recargá la página para volver a intentar.",
+          );
+      });
+    return () => { active = false; };
+  }, [session]);
+  useEffect(() => {
+    if (!apiBaseUrl) return;
+    fetch(`${apiBaseUrl}/profiles`)
+      .then((r) => (r.ok ? r.json() : Promise.reject()))
+      .then((data) => {
+        if (Array.isArray(data.profiles) && data.profiles.length)
+          setProfiles(data.profiles);
+      })
+      .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (deepLinkHandled.current || (authEnabled && !session)) return;
+    const id = profileIdFromQr(window.location.href);
+    const profile = profiles.find((item) => item.id === id);
+    if (profile) {
+      deepLinkHandled.current = true;
+      setPending(profile);
+      setView("selfie");
+    }
+  }, [profiles, session]);
+  function stopCamera() {
+    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
+    streamRef.current?.getTracks().forEach((track) => track.stop());
+    frameRef.current = null;
+    streamRef.current = null;
+    setCameraOpen(false);
+  }
+  useEffect(() => stopCamera, []);
+  function go(next: View) {
+    stopCamera();
+    setMessage("");
+    setView(
+      authEnabled && !session && next !== "welcome" && next !== "login"
+        ? "login"
+        : next,
+    );
+    window.scrollTo(0, 0);
+  }
+  function start() {
+    if (authEnabled) {
+      setAuthMode("signup");
+      go("login");
+    } else {
+      localStorage.setItem(startedKey, "1");
+      go("discover");
+    }
+  }
+  async function authenticated() {
+    const current = await currentSession();
+    if (!current) {
+      setAuthMessage("No pudimos iniciar tu sesión.");
+      return;
+    }
+    setAuthMessage("");
+    setSession(current);
+    setView("discover");
+    window.scrollTo(0, 0);
+  }
+  async function endSession() {
+    try {
+      await logout();
+      setSession(null);
+      setEncounters([]);
+      go("welcome");
+    } catch {
+      setAuthMessage("No pudimos cerrar la sesión. Intentá de nuevo.");
+    }
+  }
+  function badgeFound(payload: string) {
+    const id = profileIdFromQr(payload);
+    const profile = profiles.find((item) => item.id === id);
+    if (!profile) throw new Error("Este badge no pertenece al evento actual.");
+    stopCamera();
+    setPending(profile);
+    setSelfie(null);
+    go("selfie");
+  }
+  function readFrame() {
+    const video = videoRef.current,
+      canvas = canvasRef.current;
+    if (!video || !canvas || !streamRef.current) return;
+    if (
+      video.readyState >= HTMLMediaElement.HAVE_ENOUGH_DATA &&
+      video.videoWidth
+    ) {
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const image = ctx.getImageData(0, 0, canvas.width, canvas.height);
+        const code = jsQR(image.data, image.width, image.height, {
+          inversionAttempts: "attemptBoth",
+        });
+        if (code?.data) {
+          try {
+            badgeFound(code.data);
+            return;
+          } catch (error) {
+            setMessage(
+              error instanceof Error ? error.message : "No pudimos leer el QR.",
+            );
+          }
+        }
+      }
+    }
+    frameRef.current = requestAnimationFrame(readFrame);
+  }
+  async function openCamera(mode: "scan" | "selfie") {
+    setMessage("Abriendo cámara…");
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: mode === "scan" ? "environment" : "user" },
+        },
+        audio: false,
+      });
+      streamRef.current = stream;
+      setCameraOpen(true);
+      requestAnimationFrame(async () => {
+        if (!videoRef.current || streamRef.current !== stream) return;
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+        setMessage(
+          mode === "scan"
+            ? "Mantené el badge dentro del recuadro."
+            : "Ubíquense los dos dentro del marco.",
+        );
+        if (mode === "scan")
+          frameRef.current = requestAnimationFrame(readFrame);
+      });
+    } catch {
+      setMessage(
+        "No pudimos acceder a la cámara. Podés continuar sin foto o usar un badge de prueba.",
+      );
+    }
+  }
+  function captureSelfie() {
+    const video = videoRef.current,
+      canvas = canvasRef.current;
+    if (!video || !canvas) return;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    ctx.drawImage(video, 0, 0);
+    setSelfie(canvas.toDataURL("image/jpeg", 0.82));
+    stopCamera();
+  }
+  async function finishEncounter() {
+    if (!pending) return;
+    try {
+      if (authEnabled) {
+        if (!apiBaseUrl) throw new Error("La API no está configurada.");
+        const token = await accessToken();
+        const response = await fetch(`${apiBaseUrl}/encounters`, {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ profileId: pending.id }),
+        });
+        if (!response.ok)
+          throw new Error(
+            "Encontramos el badge, pero no pudimos guardar el encuentro. Probá de nuevo.",
+          );
+      }
+      setEncounters((current) => collectEncounter(current, pending.id));
+      go("success");
+    } catch (error) {
+      setMessage(
+        error instanceof Error
+          ? error.message
+          : "No se pudo guardar el encuentro.",
+      );
+    }
+  }
+  const inApp = view !== "welcome" && view !== "login";
+  if (!authReady)
+    return (
+      <div className="app-shell auth-loading" role="status">
+        Cargando tu pasaporte…
+      </div>
+    );
+  return (
+    <div className="app-shell">
+      {view === "welcome" && (
+        <main className="intro-screen">
+          <div className="intro-top">
+            <Brand />
+            <span className="event-pill">
+              <MapPin size={14} /> Nerdearla 2026
+            </span>
+          </div>
+          <div className="intro-art" aria-hidden="true">
+            <div className="art-orbit" />
+            <div className="art-book">
+              <div className="art-page">
+                <span className="art-logo">
+                  ✦<br />
+                  ●●●
+                </span>
+                <small>comunid.app</small>
+                <i>PASAPORTE DE ENCUENTROS</i>
+              </div>
+              <div className="art-page art-stamps">
+                <span>
+                  ✦<br />
+                  HERO
+                </span>
+                <span>
+                  ✧<br />
+                  BUILDER
+                </span>
+                <span>
+                  ✦<br />
+                  COMMUNITY
+                </span>
+                <span>＋</span>
+              </div>
+            </div>
+          </div>
+          <div className="intro-copy">
+            <h1>
+              Tu comunidad,
+              <br />
+              <em>una aventura.</em>
+            </h1>
+            <p>Conocé personas, guardá encuentros y completá tu pasaporte.</p>
+            <button className="primary-button" type="button" onClick={start}>
+              Empezar <ChevronRight size={20} />
+            </button>
+            <button
+              className="text-button"
+              type="button"
+              onClick={() => {
+                setAuthMode("login");
+                go("login");
+              }}
+            >
+              Ya tengo cuenta <ChevronRight size={17} />
+            </button>
+          </div>
+        </main>
+      )}
+      {view === "login" &&
+        (authEnabled ? (
+          <AuthScreen
+            key={authMode}
+            brand={<Brand />}
+            initialMode={authMode}
+            onBack={() => go("welcome")}
+            onAuthenticated={() => void authenticated()}
+          />
+        ) : (
+          <main className="login-screen">
+            <button
+              className="icon-button login-back"
+              type="button"
+              onClick={() => go("welcome")}
+              aria-label="Volver"
+            >
+              <ArrowLeft size={22} />
+            </button>
+            <Brand />
+            <div className="login-hero">
+              <span className="login-mark">
+                ✦<br />
+                ●●●
+              </span>
+              <h1>
+                Volvé a tu
+                <br />
+                <em>comunidad</em>
+              </h1>
+              <p>Ingresá para continuar tu pasaporte.</p>
+            </div>
+            <form
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (email.trim()) start();
+              }}
+            >
+              <label htmlFor="login-email">Correo electrónico</label>
+              <div className="input-wrap">
+                <Mail size={20} />
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  placeholder="tu@email.com"
+                  required
+                  autoComplete="email"
+                />
+              </div>
+              <p className="demo-note">
+                Vista de demo: tu progreso se guarda en este dispositivo.
+              </p>
+              <button className="primary-button" type="submit">
+                Continuar en demo <ChevronRight size={20} />
+              </button>
+            </form>
+            <button className="text-button" type="button" onClick={start}>
+              Explorar sin correo <ChevronRight size={17} />
+            </button>
+          </main>
+        ))}
+      {authMessage && (
+        <div className="global-message" role="alert">
+          {authMessage}
+        </div>
+      )}
+      {inApp && (
+        <header
+          className={`topbar ${view === "success" ? "topbar-light" : ""}`}
+        >
+          {view === "scan" || view === "selfie" ? (
+            <button
+              className="icon-button"
+              type="button"
+              onClick={() => go(view === "selfie" ? "scan" : "discover")}
+              aria-label="Volver"
+            >
+              <ArrowLeft size={20} />
+            </button>
+          ) : null}
+          <button
+            className="brand-button"
+            onClick={() => go("discover")}
+            type="button"
+          >
+            <Brand />
+          </button>
+          {view === "scan" || view === "selfie" ? (
+            <span className="icon-button top-action">
+              <Camera size={20} />
+            </span>
+          ) : (
+            <span className="event-pill">
+              <MapPin size={13} /> Nerdearla 2026
+            </span>
+          )}
+        </header>
+      )}
+      {view === "discover" && (
+        <main className="page discover-page">
+          <span className="eyebrow">LA COMUNIDAD EN VIVO</span>
+          <h1>
+            Explorá <em>el evento</em>
+          </h1>
+          <p className="page-subtitle">
+            Encontrá personas en el evento, escaneá sus badges y completá tu
+            pasaporte.
+          </p>
+          <button
+            className="mission-card"
+            type="button"
+            onClick={() => go("passport")}
+          >
+            <span className="mission-icon">
+              <Trophy size={25} />
+            </span>
+            <span>
+              <small>MISIÓN ACTIVA</small>
+              <strong>{demoQuests[1].title}</strong>
+            </span>
+            <b>{questProgress(demoQuests[1], profiles, encounters)}/2</b>
+            <ChevronRight size={18} />
+          </button>
+          <div
+            className="event-map"
+            aria-label="Mapa ilustrativo de personas para conocer"
+          >
+            <div className="map-grid" />
+            <span className="map-demo">MAPA ILUSTRATIVO</span>
+            <span className="map-zone zone-one">ESCENARIO</span>
+            <span className="map-zone zone-two">ZONA NETWORKING</span>
+            <span className="map-zone zone-three">EXPOSITORES</span>
+            <span className="map-pulse" />
+            {profiles.slice(0, 3).map((profile, i) => (
+              <button
+                key={profile.id}
+                className={`map-person map-person-${i}`}
+                type="button"
+                onClick={() => setSelected(profile)}
+              >
+                <Avatar profile={profile} />
+                <span>
+                  {profile.name.split(" ")[0]}
+                  <small>{roleLabels[profile.role]}</small>
+                </span>
+              </button>
+            ))}
+          </div>
+          <div className="nearby-card">
+            <Avatar profile={profiles[0]} />
+            <span>
+              <strong>
+                {profiles[0].name} · <em>{roleLabels[profiles[0].role]}</em>
+              </strong>
+              <small>{profiles[0].community}</small>
+              <span className="tag-list">
+                <i>Builder</i>
+                <i>IA</i>
+                <i>Comunidad</i>
+              </span>
+            </span>
+            <button type="button" onClick={() => setSelected(profiles[0])}>
+              Ver encuentro
+            </button>
+          </div>
+          <section className="below-map">
+            <h2>Personas por descubrir</h2>
+            <div className="people-row">
+              {profiles.slice(1).map((profile) => (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => setSelected(profile)}
+                >
+                  <Avatar profile={profile} />
+                  <strong>{profile.name}</strong>
+                  <small>{roleLabels[profile.role]}</small>
+                </button>
+              ))}
+            </div>
+          </section>
+        </main>
+      )}
+      {view === "passport" && (
+        <main className="page passport-page">
+          <div className="page-center">
+            <h1>Mi pasaporte</h1>
+            <h2>Nerdearla 2026</h2>
+            <p>Coleccioná encuentros. Conectá con la comunidad.</p>
+          </div>
+          <div className="passport-ticket">
+            <div className="ticket-brand">
+              <Brand />
+              <small>
+                EVENTO
+                <br />
+                <b>Nerdearla 2026</b>
+              </small>
+              <small>
+                AÑO
+                <br />
+                <b>2026</b>
+              </small>
+            </div>
+            <span className="ticket-portrait">
+              <Users size={54} />
+            </span>
+            <div className="ticket-progress">
+              <strong>
+                {collectedProfiles.length} de {profiles.length} encuentros
+              </strong>
+              <div className="segments">
+                {profiles.map((profile) => (
+                  <i
+                    key={profile.id}
+                    className={collectedIds.has(profile.id) ? "filled" : ""}
+                  />
+                ))}
+              </div>
+            </div>
+            <span className="ticket-stamp">
+              COMUNIDAD
+              <br />
+              CONECTA
+              <br />
+              EXPLORA
+            </span>
+          </div>
+          <div className="badge-grid">
+            {(
+              [
+                "hero",
+                "builder",
+                "community",
+                "student",
+                "connector",
+                "legend",
+                "innovator",
+                "creator",
+              ] as const
+            ).map((role) => {
+              const found =
+                role === "community"
+                  ? collectedProfiles.length >= 3
+                  : collectedProfiles.some((profile) => profile.role === role);
+              return (
+                <div
+                  className={found ? "badge-item earned" : "badge-item"}
+                  key={role}
+                >
+                  <span className="hex-badge">
+                    {found ? <Users size={30} /> : <LockKeyhole size={24} />}
+                  </span>
+                  <strong>
+                    {role === "community"
+                      ? "Community"
+                      : role[0].toUpperCase() + role.slice(1)}
+                  </strong>
+                  <small>{found ? "1/1" : "0/1"}</small>
+                </div>
+              );
+            })}
+          </div>
+          <div className="reward-card">
+            <Gift size={36} />
+            <span>
+              <small>PRÓXIMO PREMIO</small>
+              <strong>
+                {Math.max(0, 5 - collectedProfiles.length)
+                  ? `${5 - collectedProfiles.length} encuentros`
+                  : "¡Desbloqueado!"}
+              </strong>
+              <small>Seguí explorando para desbloquearlo.</small>
+            </span>
+            <ChevronRight size={20} />
+          </div>
+          {collectedProfiles.length > 0 && (
+            <section className="passport-people">
+              <h2>Tus encuentros</h2>
+              {collectedProfiles.map((profile) => (
+                <button
+                  key={profile.id}
+                  type="button"
+                  onClick={() => setSelected(profile)}
+                >
+                  <Avatar profile={profile} />
+                  <span>
+                    <strong>{profile.name}</strong>
+                    <small>
+                      {roleLabels[profile.role]} · {profile.city}
+                    </small>
+                  </span>
+                  <ChevronRight size={18} />
+                </button>
+              ))}
+            </section>
+          )}
+          {authEnabled && (
+            <button
+              className="text-button signout-button"
+              type="button"
+              onClick={() => void endSession()}
+            >
+              Cerrar sesión
+            </button>
+          )}
+        </main>
+      )}
+      {view === "scan" && (
+        <main className="page camera-page">
+          <div className="page-center">
+            <h1>
+              Escanear <em>badge</em>
+            </h1>
+            <p>Apuntá al QR de la persona que conociste</p>
+          </div>
+          <Steps stage={1} />
+          <div className={`camera-stage ${cameraOpen ? "camera-active" : ""}`}>
+            {cameraOpen ? (
+              <video ref={videoRef} muted playsInline />
+            ) : (
+              <div className="camera-placeholder">
+                <QrCode size={105} />
+                <span>El encuentro empieza con un hola</span>
+              </div>
+            )}
+            <div className="scan-frame">
+              <i />
+              <i />
+              <i />
+              <i />
+            </div>
+            <canvas ref={canvasRef} hidden />
+          </div>
+          <p className="camera-hint">
+            {message || "Escaneá el QR del badge para continuar"}
+          </p>
+          <div className="camera-controls">
+            {!authEnabled ? (
+              <button
+                className="round-button"
+                type="button"
+                onClick={() =>
+                  document
+                    .getElementById("demo-badges")
+                    ?.scrollIntoView({ behavior: "smooth" })
+                }
+                aria-label="Ver badges de prueba"
+              >
+                <ImagePlus size={23} />
+              </button>
+            ) : <span />}
+            <button
+              className="shutter"
+              type="button"
+              onClick={() => (cameraOpen ? stopCamera() : openCamera("scan"))}
+              aria-label={cameraOpen ? "Cerrar cámara" : "Abrir cámara"}
+            >
+              <ScanLine size={31} />
+            </button>
+            <span className="camera-tip">
+              Después, sacate
+              <br />
+              una foto para
+              <br />
+              sumar el encuentro
+            </span>
+          </div>
+          {!authEnabled && <div className="demo-badges" id="demo-badges">
+            <small>BADGES DE PRUEBA</small>
+            {profiles.slice(0, 3).map((profile) => (
+              <button
+                key={profile.id}
+                type="button"
+                onClick={() => badgeFound(`comunid:builder:${profile.id}`)}
+              >
+                <Avatar profile={profile} />
+                <span>
+                  {profile.name}
+                  <small>{roleLabels[profile.role]}</small>
+                </span>
+                <QrCode size={18} />
+              </button>
+            ))}
+          </div>}
+        </main>
+      )}
+      {view === "selfie" && (
+        <main className="page camera-page">
+          <div className="page-center">
+            <h1>
+              Selfie del <em>encuentro</em>
+            </h1>
+            <p>Sacá una foto juntos para completar el encuentro.</p>
+          </div>
+          <Steps stage={2} />
+          <div className="camera-stage selfie-stage">
+            {selfie ? (
+              <img src={selfie} alt="Selfie del encuentro" />
+            ) : cameraOpen ? (
+              <video ref={videoRef} muted playsInline />
+            ) : (
+              <div className="camera-placeholder">
+                <Users size={105} />
+                <span>Una foto para recordar este encuentro</span>
+              </div>
+            )}
+            <div className="selfie-frame" />
+            <canvas ref={canvasRef} hidden />
+          </div>
+          <div className="selfie-with">
+            <Avatar profile={pending || profiles[0]} />
+            <span>
+              Con {pending?.name || "tu nueva conexión"} ·{" "}
+              <em>{pending ? roleLabels[pending.role] : ""}</em>
+            </span>
+          </div>
+          <p className="camera-hint">
+            {message ||
+              "La foto queda en esta sesión y no se sube al servidor."}
+          </p>
+          <div className="camera-controls">
+            <button
+              className="round-button"
+              type="button"
+              onClick={() => {
+                setSelfie(null);
+                if (cameraOpen) stopCamera();
+              }}
+              aria-label="Repetir foto"
+            >
+              <X size={22} />
+            </button>
+            <button
+              className="shutter selfie-shutter"
+              type="button"
+              onClick={() =>
+                selfie
+                  ? setSelfie(null)
+                  : cameraOpen
+                    ? captureSelfie()
+                    : openCamera("selfie")
+              }
+              aria-label={
+                selfie
+                  ? "Repetir selfie"
+                  : cameraOpen
+                    ? "Sacar selfie"
+                    : "Abrir cámara"
+              }
+            >
+              <Camera size={28} />
+            </button>
+            <span className="camera-tip">
+              Sacá la foto
+              <br />
+              para ganar tu sello
+            </span>
+          </div>
+          <button
+            className="primary-button finish-button"
+            type="button"
+            disabled={!pending}
+            onClick={finishEncounter}
+          >
+            {selfie ? "Guardar encuentro" : "Continuar sin foto"}
+            <ChevronRight size={20} />
+          </button>
+        </main>
+      )}
+      {view === "success" && pending && (
+        <main className="page success-page">
+          <div className="page-center">
+            <span className="confetti">✦ &nbsp; ✧ &nbsp; ✦</span>
+            <h1>
+              ¡Encuentro
+              <br />
+              <em>registrado!</em>
+            </h1>
+            <p>Nueva persona en tu comunidad.</p>
+          </div>
+          <div className="success-photo">
+            {selfie ? (
+              <img src={selfie} alt="Selfie del encuentro" />
+            ) : (
+              <div className="success-avatar">
+                <Avatar profile={pending} large />
+              </div>
+            )}
+            <span className="photo-sparkle">✦</span>
+          </div>
+          <div className="success-person">
+            <Avatar profile={pending} />
+            <span>
+              <small>{roleLabels[pending.role].toUpperCase()} ENCONTRADO</small>
+              <strong>
+                {pending.name} · {roleLabels[pending.role]}
+              </strong>
+              <small>Nueva persona en tu comunidad.</small>
+            </span>
+            <span className="seal">
+              SELLO
+              <br />✦
+            </span>
+          </div>
+          <div className="success-progress">
+            <span>
+              <small>TU PASAPORTE</small>
+              <strong>
+                {collectedProfiles.length} de {profiles.length} encuentros
+              </strong>
+            </span>
+            <BookOpen size={24} />
+            <div className="progress-track">
+              <i
+                style={{
+                  width: `${Math.min(100, (collectedProfiles.length / Math.max(profiles.length, 1)) * 100)}%`,
+                }}
+              />
+            </div>
+          </div>
+          <div className="success-reward">
+            <Gift size={27} />
+            <span>
+              <strong>¡Nuevo sello desbloqueado!</strong>
+              <small>Sumás un sello a tu pasaporte.</small>
+            </span>
+            <Sparkles size={19} />
+          </div>
+          <button
+            className="primary-button"
+            type="button"
+            onClick={() => go("passport")}
+          >
+            Ver mi pasaporte <ChevronRight size={20} />
+          </button>
+          <button
+            className="text-button"
+            type="button"
+            onClick={() => go("discover")}
+          >
+            Seguir explorando
+          </button>
+        </main>
+      )}
+      {inApp && (
+        <nav className="bottom-nav" aria-label="Navegación principal">
+          <button
+            className={view === "discover" ? "active" : ""}
+            type="button"
+            onClick={() => go("discover")}
+          >
+            <Compass size={21} />
+            <span>Descubrir</span>
+          </button>
+          <button
+            className={
+              ["scan", "selfie", "success"].includes(view) ? "active" : ""
+            }
+            type="button"
+            onClick={() => go("scan")}
+          >
+            <ScanLine size={22} />
+            <span>Escanear</span>
+          </button>
+          <button
+            className={view === "passport" ? "active" : ""}
+            type="button"
+            onClick={() => go("passport")}
+          >
+            <BookOpen size={22} />
+            <span>Pasaporte</span>
+          </button>
+        </nav>
+      )}
+      {selected && (
+        <ProfileDialog
+          profile={selected}
+          collected={collectedIds.has(selected.id)}
+          onClose={() => setSelected(null)}
+          onScan={() => {
+            setSelected(null);
+            go("scan");
+          }}
+        />
+      )}
     </div>
   );
 }
-
-function ProfileCard({ profile, collected, onOpen }: { profile: BuilderProfile; collected: boolean; onOpen: () => void }) {
+function Steps({ stage }: { stage: 1 | 2 }) {
   return (
-    <button className={`profile-card ${collected ? "collected" : "locked"}`} onClick={onOpen} type="button">
-      <ProfileAvatar profile={profile} />
-      <span className="profile-copy">
-        <span className="role-label" style={{ color: profile.color }}>{roleLabels[profile.role]}</span>
-        <strong>{collected ? profile.name : "Persona por descubrir"}</strong>
-        <small>{collected ? `${profile.title} · ${profile.city}` : "Conocela y escaneá su badge"}</small>
+    <div className="steps">
+      <span className={stage === 1 ? "current" : "done"}>
+        {stage === 1 ? "1" : <Check size={16} />}
+        <small>Escanear</small>
       </span>
-      <span className="card-state" aria-label={collected ? "Collected" : "Locked"}>
-        {collected ? <Check size={18} /> : <LockKeyhole size={17} />}
+      <i />
+      <span className={stage === 2 ? "current" : ""}>
+        2<small>Selfie</small>
       </span>
-    </button>
+      <i />
+      <span>
+        3<small>Sello</small>
+      </span>
+    </div>
   );
 }
-
-function ProfileDetail({ profile, collected, onClose, onCollect }: {
+function ProfileDialog({
+  profile,
+  collected,
+  onClose,
+  onScan,
+}: {
   profile: BuilderProfile;
   collected: boolean;
   onClose: () => void;
-  onCollect: () => void;
+  onScan: () => void;
 }) {
-  const [qrDataUrl, setQrDataUrl] = useState("");
-
+  const [qr, setQr] = useState("");
   useEffect(() => {
-    const publicAppUrl = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
-    QRCode.toDataURL(`${publicAppUrl.replace(/\/$/, "")}/b/${profile.id}`, {
-      width: 320,
+    if (!collected) return;
+    const url = import.meta.env.VITE_PUBLIC_APP_URL || window.location.origin;
+    QRCode.toDataURL(`${String(url).replace(/\/$/, "")}/b/${profile.id}`, {
+      width: 250,
       margin: 1,
-      color: { dark: "#101218", light: "#FFFFFF" }
-    }).then(setQrDataUrl);
-  }, [profile.id]);
-
+    }).then(setQr);
+  }, [profile.id, collected]);
   return (
-    <div className="sheet-backdrop" role="presentation" onMouseDown={onClose}>
-      <section className="profile-sheet" role="dialog" aria-modal="true" aria-label={`Perfil de ${profile.name}`} onMouseDown={(event) => event.stopPropagation()}>
-        <button className="sheet-close" type="button" onClick={onClose} aria-label="Cerrar perfil"><X size={20} /></button>
+    <div className="sheet-backdrop" onMouseDown={onClose}>
+      <section
+        className="profile-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Perfil de ${profile.name}`}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <button
+          className="sheet-close"
+          type="button"
+          onClick={onClose}
+          aria-label="Cerrar"
+        >
+          <X size={20} />
+        </button>
         <div className="sheet-identity">
-          <ProfileAvatar profile={profile} large />
-          <div>
-            <span className="role-pill" style={{ "--accent": profile.color } as React.CSSProperties}>{roleLabels[profile.role]}</span>
+          <Avatar profile={profile} large />
+          <span>
+            <small>{roleLabels[profile.role]}</small>
             <h2>{profile.name}</h2>
             <p>{profile.title}</p>
-          </div>
+          </span>
         </div>
-        <div className="location-line"><MapPin size={16} /> {profile.city} · {profile.community}</div>
+        <p className="location-line">
+          <MapPin size={16} /> {profile.city} · {profile.community}
+        </p>
         <p className="profile-story">{profile.story}</p>
-        <div className="superpower-card" style={{ "--accent": profile.color } as React.CSSProperties}>
-          <Sparkles size={19} />
-          <div><span>Superpoder en la comunidad</span><strong>{profile.superpower}</strong></div>
+        <div className="detail-block">
+          <Sparkles size={21} />
+          <span>
+            <small>SUPERPODER EN LA COMUNIDAD</small>
+            <strong>{profile.superpower}</strong>
+          </span>
         </div>
-        <div className="prompt-card">
-          <span>Para empezar una charla</span>
-          <strong>“Preguntame sobre {profile.askMeAbout.toLowerCase()}.”</strong>
+        <div className="detail-block">
+          <Users size={21} />
+          <span>
+            <small>PARA EMPEZAR UNA CHARLA</small>
+            <strong>
+              Preguntame sobre {profile.askMeAbout.toLowerCase()}.
+            </strong>
+          </span>
         </div>
         {collected ? (
           <div className="qr-share">
-            {qrDataUrl && <img src={qrDataUrl} alt={`Código QR de ${profile.name}`} />}
-            <div><span>En tu colección</span><strong>Parte de tu Comunid</strong><small>Compartí este código para presentarle a alguien más.</small></div>
+            {qr && <img src={qr} alt={`QR de ${profile.name}`} />}
+            <span>
+              <strong>En tu pasaporte</strong>
+              <small>Compartí este código para presentar a esta persona.</small>
+            </span>
           </div>
         ) : (
-          <button className="primary-button" type="button" onClick={onCollect}><ScanLine size={19} /> Demo: guardar este perfil</button>
+          <button className="primary-button" type="button" onClick={onScan}>
+            <ScanLine size={20} /> Escanear su badge
+          </button>
         )}
       </section>
     </div>
   );
 }
-
-function App() {
-  const [view, setView] = useState<View>("discover");
-  const [profiles, setProfiles] = useState<BuilderProfile[]>(demoProfiles);
-  const [encounters, setEncounters] = useState<Encounter[]>(readStoredEncounters);
-  const [selected, setSelected] = useState<BuilderProfile | null>(null);
-  const [scanMessage, setScanMessage] = useState("Apuntá la cámara a un badge de Comunid.");
-  const [scannerOpen, setScannerOpen] = useState(false);
-  const [scanError, setScanError] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const frameRef = useRef<number | null>(null);
-  const busyRef = useRef(false);
-  const deepLinkHandledRef = useRef(false);
-  const playerId = useMemo(getPlayerId, []);
-
-  const collectedIds = useMemo(() => new Set(encounters.map((encounter) => encounter.builderId)), [encounters]);
-  const collectedProfiles = profiles.filter((profile) => collectedIds.has(profile.id));
-
-  useEffect(() => {
-    localStorage.setItem(storageKey, JSON.stringify(encounters));
-  }, [encounters]);
-
-  useEffect(() => {
-    if (!apiBaseUrl) return;
-    fetch(`${apiBaseUrl}/profiles`)
-      .then((result) => result.ok ? result.json() : Promise.reject(new Error("profiles unavailable")))
-      .then((payload) => Array.isArray(payload.profiles) && payload.profiles.length && setProfiles(payload.profiles))
-      .catch(() => undefined);
-  }, []);
-
-  useEffect(() => {
-    if (deepLinkHandledRef.current) return;
-    const profileId = profileIdFromQr(window.location.href);
-    if (!profileId) return;
-    const profile = profiles.find((candidate) => candidate.id === profileId);
-    if (!profile) return;
-    deepLinkHandledRef.current = true;
-    collect(profile);
-  }, [profiles]);
-
-  const collect = (profile: BuilderProfile) => {
-    setEncounters((current) => collectEncounter(current, profile.id));
-    setSelected(profile);
-  };
-
-  const stopScanner = () => {
-    if (frameRef.current !== null) cancelAnimationFrame(frameRef.current);
-    streamRef.current?.getTracks().forEach((track) => track.stop());
-    frameRef.current = null;
-    streamRef.current = null;
-    busyRef.current = false;
-    setScannerOpen(false);
-  };
-
-  const resolvePayload = async (payload: string) => {
-    const profileId = profileIdFromQr(payload);
-    const profile = profiles.find((candidate) => candidate.id === profileId);
-    if (!profile) throw new Error("Este badge no pertenece al evento actual.");
-
-    if (apiBaseUrl) {
-      const response = await fetch(`${apiBaseUrl}/encounters`, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ profileId: profile.id, eventId: "nerdearla-2026", playerId })
-      });
-      if (!response.ok) throw new Error("Encontramos el badge, pero no pudimos guardar el encuentro.");
-    }
-
-    collect(profile);
-    setScanMessage(`${profile.name} ahora forma parte de tu Comunid.`);
-    setScanError(false);
-    stopScanner();
-  };
-
-  const readFrame = async () => {
-    const video = videoRef.current;
-    const canvas = canvasRef.current;
-    if (!video || !canvas || video.readyState < HTMLMediaElement.HAVE_ENOUGH_DATA) {
-      frameRef.current = requestAnimationFrame(readFrame);
-      return;
-    }
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    const context = canvas.getContext("2d", { willReadFrequently: true });
-    if (!context) return;
-    context.drawImage(video, 0, 0);
-    const image = context.getImageData(0, 0, canvas.width, canvas.height);
-    const code = jsQR(image.data, image.width, image.height, { inversionAttempts: "attemptBoth" });
-    if (code?.data && !busyRef.current) {
-      busyRef.current = true;
-      try {
-        await resolvePayload(code.data);
-        return;
-      } catch (error) {
-        busyRef.current = false;
-        setScanError(true);
-        setScanMessage(error instanceof Error ? error.message : "No pudimos leer este badge.");
-      }
-    }
-    frameRef.current = requestAnimationFrame(readFrame);
-  };
-
-  const startScanner = async () => {
-    setScanError(false);
-    setScanMessage("Abriendo cámara…");
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: "environment" } }, audio: false });
-      streamRef.current = stream;
-      setScannerOpen(true);
-      requestAnimationFrame(async () => {
-        if (!videoRef.current) return;
-        videoRef.current.srcObject = stream;
-        await videoRef.current.play();
-        setScanMessage("Mantené el badge dentro del recuadro.");
-        frameRef.current = requestAnimationFrame(readFrame);
-      });
-    } catch {
-      setScanError(true);
-      setScanMessage("No pudimos acceder a la cámara. Probá un badge de demo abajo.");
-    }
-  };
-
-  useEffect(() => stopScanner, []);
-
-  const changeView = (next: View) => {
-    if (next !== "scan") stopScanner();
-    setView(next);
-  };
-
-  return (
-    <div className="app-shell">
-      <header className="topbar">
-        <button className="wordmark" onClick={() => changeView("discover")} type="button" aria-label="Comunid home">
-          <img src="/brand/logo-comunid-app.png" alt="Comunid.app" />
-        </button>
-        <div className="event-chip"><span /> Nerdearla 2026</div>
-      </header>
-
-      <main>
-        {view === "discover" && (
-          <div className="page">
-            <section className="welcome">
-              <span className="eyebrow">LA COMUNIDAD EMPIEZA CON UN HOLA</span>
-              <h1>¿A quién vas a<br /><em>conocer hoy?</em></h1>
-              <p>Descubrí a las personas detrás de las charlas y los proyectos. Saludá, conectá y escaneá su badge.</p>
-              <button className="scan-cta" onClick={() => changeView("scan")} type="button">
-                <span><ScanLine size={27} /></span>
-                <div><strong>Escanear un badge</strong><small>Descubrí su historia</small></div>
-                <QrCode size={22} />
-              </button>
-            </section>
-
-            <section className="stats-strip" aria-label="Collection progress">
-              <div><strong>{collectedProfiles.length}</strong><span>personas</span></div>
-              <div><strong>{demoQuests.filter((quest) => questProgress(quest, profiles, encounters) >= quest.target).length}</strong><span>misiones</span></div>
-              <div><strong>{new Set(collectedProfiles.map((profile) => profile.role)).size}</strong><span>roles</span></div>
-            </section>
-
-            <section className="section-block">
-              <div className="section-heading"><div><span>MISIONES DEL EVENTO</span><h2>Encontrá tu comunidad</h2></div><Trophy size={22} /></div>
-              <div className="quest-list">
-                {demoQuests.map((quest) => {
-                  const progress = Math.min(questProgress(quest, profiles, encounters), quest.target);
-                  return (
-                    <article className="quest-card" key={quest.id}>
-                      <div className="quest-top"><span className={progress >= quest.target ? "quest-icon complete" : "quest-icon"}>{progress >= quest.target ? <Check size={17} /> : <Compass size={17} />}</span><div><strong>{quest.title}</strong><p>{quest.description}</p></div><b>{progress}/{quest.target}</b></div>
-                      <div className="progress-track"><span style={{ width: `${(progress / quest.target) * 100}%` }} /></div>
-                    </article>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="section-block">
-              <div className="section-heading"><div><span>EN EL EVENTO</span><h2>Personas por descubrir</h2></div><Users size={22} /></div>
-              <div className="profile-list">
-                {profiles.slice(0, 4).map((profile) => <ProfileCard key={profile.id} profile={profile} collected={collectedIds.has(profile.id)} onOpen={() => setSelected(profile)} />)}
-              </div>
-            </section>
-          </div>
-        )}
-
-        {view === "scan" && (
-          <div className="page scan-page">
-            <button className="back-button" type="button" onClick={() => changeView("discover")}><ArrowLeft size={19} /> Volver</button>
-            <div className="scan-title"><span className="eyebrow">EMPEZÁ UNA CONEXIÓN</span><h1>Escaneá su badge</h1><p>El QR desbloquea su historia y guarda el encuentro.</p></div>
-            <div className={`scanner ${scannerOpen ? "active" : ""}`}>
-              {scannerOpen ? <video ref={videoRef} muted playsInline /> : <div className="scanner-idle"><div><Camera size={34} /></div><strong>Cuando quieras, empezamos</strong><span>La cámara funciona desde tu dispositivo.</span></div>}
-              <canvas ref={canvasRef} hidden />
-              <span className="corner top-left" /><span className="corner top-right" /><span className="corner bottom-left" /><span className="corner bottom-right" />
-            </div>
-            <p className={`scan-message ${scanError ? "error" : ""}`}>{scanMessage}</p>
-            <button className="primary-button" type="button" onClick={scannerOpen ? stopScanner : startScanner}>{scannerOpen ? <X size={19} /> : <Camera size={19} />}{scannerOpen ? "Cerrar cámara" : "Abrir cámara"}</button>
-            <div className="demo-badges"><span>PROBÁ EL PROTOTIPO</span><p>Estos botones simulan badges QR durante el desarrollo.</p>{profiles.slice(0, 3).map((profile) => <button type="button" key={profile.id} onClick={() => resolvePayload(`comunid:builder:${profile.id}`)}><ProfileAvatar profile={profile} /><span><strong>{profile.name}</strong><small>{roleLabels[profile.role]}</small></span><QrCode size={19} /></button>)}</div>
-          </div>
-        )}
-
-        {view === "collection" && (
-          <div className="page collection-page">
-            <div className="collection-title"><span className="eyebrow">TUS ENCUENTROS</span><h1>Mi Comunid</h1><p>{collectedProfiles.length ? `${collectedProfiles.length} historias guardadas en Nerdearla.` : "Tu colección empieza con un hola."}</p></div>
-            <div className="role-ribbon">{Object.entries(roleLabels).map(([role, label]) => <span className={collectedProfiles.some((profile) => profile.role === role) ? "found" : ""} key={role}><i />{label}</span>)}</div>
-            <div className="profile-list collection-list">
-              {profiles.map((profile) => <ProfileCard key={profile.id} profile={profile} collected={collectedIds.has(profile.id)} onOpen={() => collectedIds.has(profile.id) ? setSelected(profile) : changeView("scan")} />)}
-            </div>
-          </div>
-        )}
-      </main>
-
-      <nav className="bottom-nav" aria-label="Navegación principal">
-        <button className={view === "discover" ? "active" : ""} onClick={() => changeView("discover")} type="button"><Compass size={21} /><span>Descubrir</span></button>
-        <button className="nav-scan" onClick={() => changeView("scan")} type="button" aria-label="Escanear badge"><span><ScanLine size={25} /></span></button>
-        <button className={view === "collection" ? "active" : ""} onClick={() => changeView("collection")} type="button"><Users size={21} /><span>Mi Comunid</span></button>
-      </nav>
-
-      {selected && <ProfileDetail profile={selected} collected={collectedIds.has(selected.id)} onClose={() => setSelected(null)} onCollect={() => collect(selected)} />}
-    </div>
-  );
-}
-
-ReactDOM.createRoot(document.getElementById("root")!).render(<React.StrictMode><App /></React.StrictMode>);
+ReactDOM.createRoot(document.getElementById("root")!).render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>,
+);

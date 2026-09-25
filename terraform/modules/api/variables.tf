@@ -8,4 +8,6 @@ variable "media_bucket_arn" { type = string }
 variable "public_app_url" { type = string }
 variable "allowed_origins" { type = list(string) }
 variable "default_event_id" { type = string }
+variable "cognito_issuer" { type = string }
+variable "cognito_client_id" { type = string }
 variable "tags" { type = map(string) }
