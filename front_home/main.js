@@ -4,75 +4,71 @@ const appUrl = import.meta.env.VITE_APP_URL || (import.meta.env.DEV ? "http://12
 
 document.querySelector("#app").innerHTML = `
   <header class="site-header">
-    <a class="brand" href="#inicio" aria-label="Comunid, inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>comunid<span class="brand-dot">.</span></span></a>
-    <nav aria-label="Navegación principal">
-      <a href="#experiencia">La experiencia</a>
-      <a href="#comunidad">La comunidad</a>
-      <a class="nav-cta app-link" href="/app/">Entrar <span aria-hidden="true">↗</span></a>
+    <a class="brand" href="#inicio" aria-label="Comunid, inicio"><img src="/brand/logo-comunid-app.png" alt="Comunid.app" /></a>
+    <nav id="main-nav" aria-label="Navegación principal">
+      <a href="#idea">La idea</a><a href="#experiencia">Cómo funciona</a><a href="#comunidades">Comunidades</a>
+      <a class="nav-cta app-link" href="/app/">Entrar a la app <span aria-hidden="true">↗</span></a>
     </nav>
-    <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-expanded="false"><span></span><span></span></button>
+    <button class="menu-toggle" type="button" aria-label="Abrir menú" aria-controls="main-nav" aria-expanded="false"><span></span><span></span></button>
   </header>
 
   <main>
     <section class="hero" id="inicio">
-      <div class="hero-copy">
-        <p class="eyebrow"><span class="live-dot"></span> UNA EXPERIENCIA PARA ENCONTRARNOS</p>
-        <h1>La comunidad<br />se descubre <em>cuando<br class="desktop-break" /> nos encontramos.</em></h1>
-        <p class="hero-lead">En cada evento hay personas increíbles a una conversación de distancia. Comunid te ayuda a encontrarlas, conocer sus historias y llevarte algo más que un contacto.</p>
-        <div class="hero-actions">
-          <a class="button button-primary app-link" href="/app/">Descubrí Comunid <span aria-hidden="true">↗</span></a>
-          <a class="text-link" href="#experiencia">Así funciona <span aria-hidden="true">↓</span></a>
+      <div class="hero-inner">
+        <div class="hero-copy">
+          <p class="eyebrow"><span></span> LA COMUNIDAD EMPIEZA CON UN HOLA</p>
+          <h1>Vení por el evento.<br /><em>Quedate por las personas.</em></h1>
+          <p class="hero-lead">En cada meetup hay alguien que puede cambiar tu próxima idea. Comunid convierte esos encuentros en historias para descubrir, compartir y recordar.</p>
+          <div class="hero-actions"><a class="button button-primary app-link" href="/app/">Explorar Comunid <span aria-hidden="true">↗</span></a><a class="button button-outline" href="#experiencia">Conocé la experiencia <span aria-hidden="true">↓</span></a></div>
         </div>
-        <div class="social-proof"><div class="avatar-stack" aria-hidden="true"><span>AG</span><span>ML</span><span>JP</span><span>+</span></div><p><strong>Las personas hacen la comunidad.</strong><br />Empezá por conocerlas.</p></div>
+        <div class="hero-stage" aria-label="Personas de la comunidad en Community Day Argentina 2026">
+          <figure class="hero-photo hero-photo-main"><img src="/community/community-day-argentina-2026.jpg" alt="Foto grupal de la comunidad en Community Day Argentina 2026" /></figure>
+          <figure class="hero-photo hero-photo-left"><img src="/community/speaker-roxx.jpg" alt="Una speaker comparte su historia en el escenario" /></figure>
+          <figure class="hero-photo hero-photo-right"><img src="/community/community-conversation.jpg" alt="Dos participantes conversan en el evento" /></figure>
+          <div class="connection-card"><span class="connection-icon" aria-hidden="true">✳</span><div><small>COMUNID / EN VIVO</small><strong>Una comunidad.<br />Infinitas conexiones.</strong></div><span aria-hidden="true">↗</span></div>
+        </div>
       </div>
-
-      <div class="hero-art" aria-label="Tarjetas de personas de una comunidad conectadas entre sí">
-        <div class="orbit orbit-a"></div><div class="orbit orbit-b"></div>
-        <svg class="connections" viewBox="0 0 520 520" aria-hidden="true"><path d="M261 258 140 151M261 258 385 131M261 258 408 342M261 258 151 390M140 151 385 131M151 390 408 342" /></svg>
-        <div class="person-card card-main"><div class="card-photo photo-main"><span>LM</span><b>✦</b></div><div><small>BUILDER · BUENOS AIRES</small><strong>Lucía Méndez</strong><p>Conecta ideas con impacto.</p></div><span class="card-star">✳</span></div>
-        <div class="person-card card-top"><div class="card-photo photo-top"><span>NS</span></div><div><small>HERO</small><strong>Nico Suárez</strong></div></div>
-        <div class="person-card card-right"><div class="card-photo photo-right"><span>CR</span></div><div><small>CONNECTOR</small><strong>Camila Ríos</strong></div></div>
-        <div class="person-card card-left"><div class="card-photo photo-left"><span>TA</span></div><div><small>STUDENT</small><strong>Tomás Acosta</strong></div></div>
-        <div class="scan-note"><span class="scan-icon" aria-hidden="true">⌗</span><span><strong>Una charla real.</strong><br />Una historia desbloqueada.</span></div>
-        <div class="spark spark-one">✳</div><div class="spark spark-two">✦</div>
-      </div>
-      <a class="scroll-cue" href="#experiencia">SEGUÍ DESCUBRIENDO <span aria-hidden="true">↓</span></a>
+      <div class="hero-bottom"><span>PERSONAS &gt; PERFILES</span><a href="#idea">DESCUBRÍ MÁS ↓</a><span>HECHO PARA ENCONTRARNOS</span></div>
     </section>
 
-    <section class="manifesto" id="comunidad">
-      <div><p class="eyebrow eyebrow-dark"><span class="live-dot"></span> MÁS QUE UN EVENTO</p><h2>Detrás de cada badge<br />hay una <em>historia.</em></h2></div>
-      <p>Comunid convierte los encuentros del evento en historias que podés descubrir. Una invitación a salir de tu círculo, cruzarte con alguien nuevo y encontrar qué los conecta.</p>
+    <section class="intro section-wrap" id="idea">
+      <div><p class="section-kicker"><span>01 /</span> LA IDEA</p><h2>La mejor parte de una comunidad <em>son las personas.</em></h2></div>
+      <div class="intro-copy"><p>Un evento puede terminar. Una conversación puede ser el comienzo de algo enorme.</p><p>Comunid te invita a mirar más allá del badge: conocer qué hace cada persona, encontrar puntos en común y llevarte una historia que vale la pena recordar.</p><a class="inline-link" href="#experiencia">Así se vive la experiencia ↗</a></div>
     </section>
 
-    <section class="experience" id="experiencia">
-      <div class="section-heading"><div><p class="eyebrow"><span class="live-dot"></span> FÁCIL COMO DECIR HOLA</p><h2>Un encuentro abre<br />un mundo nuevo.</h2></div><p>Sin descargas. Sin presentaciones incómodas.<br />Solo curiosidad y ganas de conocer.</p></div>
-      <div class="steps-grid">
-        <article class="step-card step-lime"><span class="step-number">01 / ENCONTRÁ</span><div class="step-visual radar"><i></i><i></i><i></i><b>✦</b><span class="radar-label">HAY ALGUIEN<br />POR CONOCER</span></div><h3>Seguí tu curiosidad</h3><p>Explorá perfiles, misiones y pistas para descubrir a quienes construyen la comunidad.</p></article>
-        <article class="step-card step-blue"><span class="step-number">02 / CONECTÁ</span><div class="step-visual qr-visual"><div class="qr-card"><span>▦</span><i></i><i></i><i></i><b>HOLA 👋</b></div><span class="qr-beam"></span></div><h3>Empezá una charla</h3><p>Conocé a la persona, compartan un momento y escaneá su badge para desbloquear su historia.</p></article>
-        <article class="step-card step-peach"><span class="step-number">03 / RECORDÁ</span><div class="step-visual collection-visual"><div class="mini-profile profile-one">LM</div><div class="mini-profile profile-two">NS</div><div class="mini-profile profile-three">CR</div><div class="mini-profile profile-four">TA</div><div class="collection-bubble">4 <small>HISTORIAS</small></div></div><h3>Guardá lo que te inspira</h3><p>Coleccioná encuentros, completá misiones y llevate un recuerdo de las personas que conociste.</p></article>
+    <section class="showcase" id="comunidades"><div class="section-wrap">
+      <div class="showcase-heading"><div><p class="section-kicker"><span>02 /</span> LO QUE NOS MUEVE</p><h2>La energía está<br />en todas partes<span class="violet-dot">.</span></h2></div><p>Cada comunidad crece cuando alguien comparte lo que sabe y abre espacio para una nueva persona.</p></div>
+      <div class="gallery">
+        <article class="gallery-card gallery-feature"><img src="/community/latam-community.jpg" alt="Participantes de la comunidad con banderas de Argentina y México" loading="lazy" /><div class="gallery-caption"><span>COMUNIDAD LATAM</span><strong>Ideas que cruzan fronteras.</strong></div></article>
+        <article class="gallery-card"><img src="/community/speaker-damian.jpg" alt="Un speaker habla en el escenario ante la comunidad" loading="lazy" /><div class="gallery-caption"><span>COMPARTIR</span><strong>Cada historia inspira otra.</strong></div></article>
+        <article class="gallery-card"><img src="/community/community-celebration.jpg" alt="Participantes celebran juntos en el escenario" loading="lazy" /><div class="gallery-caption"><span>ENCONTRARNOS</span><strong>Crecer juntos nos mueve.</strong></div></article>
+      </div><p class="gallery-note">Momentos de Community Day Argentina 2026.</p>
+    </div></section>
+
+    <section class="experience section-wrap" id="experiencia">
+      <div class="experience-heading"><p class="section-kicker"><span>03 /</span> LA EXPERIENCIA</p><h2>Conectar es más fácil<br />cuando empezás <em>por un hola.</em></h2><p>Una forma simple de descubrir personas en un evento y guardar los encuentros que importan.</p></div>
+      <div class="steps">
+        <article class="step"><span class="step-number">01 ↗</span><div class="step-art radar" aria-hidden="true"><i></i><i></i><b>✦</b></div><h3>Descubrí</h3><p>Explorá a quienes están cerca y encontrá una buena excusa para iniciar una charla.</p></article>
+        <article class="step"><span class="step-number">02 ↗</span><div class="step-art scan" aria-hidden="true"><span>⌗</span><b>HOLA!</b></div><h3>Conectá</h3><p>Conocé a la persona. Escaneá su badge y desbloqueá su historia.</p></article>
+        <article class="step"><span class="step-number">03 ↗</span><div class="step-art collection" aria-hidden="true"><span>✳</span><span>✦</span><span>◈</span></div><h3>Recordá</h3><p>Guardá los encuentros, completá misiones y seguí el vínculo después del evento.</p></article>
       </div>
     </section>
-
-    <section class="roles">
-      <div><p class="eyebrow eyebrow-dark"><span class="live-dot"></span> CADA QUIEN SUMA ALGO ÚNICO</p><h2>Una comunidad.<br /><em>Muchas formas de brillar.</em></h2></div>
-      <div class="role-list"><span><i class="role-icon role-hero">✦</i>Heroes</span><span><i class="role-icon role-builder">⌘</i>Builders</span><span><i class="role-icon role-student">✳</i>Students</span><span><i class="role-icon role-connector">↗</i>Connectors</span><span><i class="role-icon role-legend">◈</i>Legends</span></div>
-    </section>
-
-    <section class="closing-cta"><div class="closing-orbit"></div><div class="closing-copy"><p class="eyebrow"><span class="live-dot"></span> TU PRÓXIMO ENCUENTRO TE ESPERA</p><h2>Venís por el evento.<br /><em>Te vas con la comunidad.</em></h2><p>Entrá, descubrí a alguien nuevo y empezá por un hola.</p><a class="button button-light app-link" href="/app/">Abrir la experiencia <span aria-hidden="true">↗</span></a></div><div class="closing-mark" aria-hidden="true">c<span>.</span></div></section>
+    <section class="final-cta"><div class="section-wrap"><p class="section-kicker"><span>04 /</span> TU PRÓXIMA CONEXIÓN</p><h2>La próxima gran historia<br />puede empezar <em>hoy.</em></h2><p>Entrá a Comunid y descubrí quién está del otro lado del badge.</p><a class="button button-primary app-link" href="/app/">Abrir la experiencia ↗</a></div></section>
   </main>
-
-  <footer class="site-footer"><a class="brand" href="#inicio"><span class="brand-mark" aria-hidden="true"><i></i><i></i><i></i><i></i></span><span>comunid<span class="brand-dot">.</span></span></a><p>Personas que hacen comunidad.</p><a class="footer-link app-link" href="/app/">Ir a la app <span aria-hidden="true">↗</span></a><small>© 2026 Comunid. Hecho para encontrarnos.</small></footer>
+  <footer class="site-footer section-wrap"><a class="brand" href="#inicio" aria-label="Comunid, volver al inicio"><img src="/brand/logo-comunid-app.png" alt="Comunid.app" /></a><p>Personas que hacen comunidad.</p><a class="inline-link app-link" href="/app/">Ir a la app ↗</a><small>© 2026 Comunid</small></footer>
 `;
 
 document.querySelectorAll(".app-link").forEach((link) => link.setAttribute("href", appUrl));
-
 const menuButton = document.querySelector(".menu-toggle");
+const header = document.querySelector(".site-header");
 menuButton.addEventListener("click", () => {
   const expanded = menuButton.getAttribute("aria-expanded") === "true";
   menuButton.setAttribute("aria-expanded", String(!expanded));
-  document.querySelector(".site-header").classList.toggle("menu-open", !expanded);
+  menuButton.setAttribute("aria-label", expanded ? "Abrir menú" : "Cerrar menú");
+  header.classList.toggle("menu-open", !expanded);
 });
 document.querySelectorAll(".site-header nav a").forEach((link) => link.addEventListener("click", () => {
   menuButton.setAttribute("aria-expanded", "false");
-  document.querySelector(".site-header").classList.remove("menu-open");
+  menuButton.setAttribute("aria-label", "Abrir menú");
+  header.classList.remove("menu-open");
 }));

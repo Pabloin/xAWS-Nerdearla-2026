@@ -5,66 +5,66 @@ export const demoProfiles: BuilderProfile[] = [
     id: "ana-cloud",
     name: "Ana Silva",
     role: "builder",
-    title: "Cloud Community Organizer",
+    title: "Organizadora de comunidades cloud",
     city: "Buenos Aires",
     community: "AWS User Group Argentina",
-    superpower: "Turning curious people into confident learners",
-    askMeAbout: "Running your first study group",
-    story: "Ana creates welcoming spaces where people can learn cloud technology together.",
-    color: "#C8FF3D"
+    superpower: "Convertir curiosidad en ganas de aprender",
+    askMeAbout: "organizar tu primer grupo de estudio",
+    story: "Ana crea espacios donde las personas pueden aprender tecnología cloud juntas.",
+    color: "#A35CFF"
   },
   {
     id: "mati-open",
     name: "Mati Rojas",
     role: "hero",
-    title: "Open-source maintainer",
+    title: "Maintainer de código abierto",
     city: "Córdoba",
     community: "Open Source LATAM",
-    superpower: "Making hard technical ideas feel approachable",
-    askMeAbout: "Contributing your first pull request",
-    story: "Mati mentors new contributors and maintains tools used across the region.",
-    color: "#56D8FF"
+    superpower: "Hacer accesibles las ideas técnicas difíciles",
+    askMeAbout: "hacer tu primer pull request",
+    story: "Mati acompaña a nuevas personas colaboradoras y mantiene herramientas usadas en la región.",
+    color: "#75A8FF"
   },
   {
     id: "luz-student",
     name: "Luz Benítez",
     role: "student",
-    title: "Computer science student",
+    title: "Estudiante de informática",
     city: "Rosario",
     community: "Nerdearla Student Crew",
-    superpower: "Asking the question everyone else was thinking",
-    askMeAbout: "Learning in public",
-    story: "Luz shares her path into technology and helps other students find their first community.",
-    color: "#FF6D8D"
+    superpower: "Hacer la pregunta que todos tenían en mente",
+    askMeAbout: "aprender en público",
+    story: "Luz comparte su camino en tecnología y ayuda a otros estudiantes a encontrar su primera comunidad.",
+    color: "#D783EE"
   },
   {
     id: "nico-connects",
     name: "Nico Paz",
     role: "connector",
-    title: "Volunteer coordinator",
+    title: "Coordinador de voluntariado",
     city: "Mendoza",
     community: "Nerdearla",
-    superpower: "Remembering exactly who should meet whom",
-    askMeAbout: "Volunteering at a tech event",
-    story: "Nico helps volunteers find meaningful roles and introduces people across communities.",
-    color: "#FFB547"
+    superpower: "Saber quién debería conocer a quién",
+    askMeAbout: "ser voluntario en un evento de tecnología",
+    story: "Nico ayuda a voluntarios a encontrar su lugar y conecta personas de distintas comunidades.",
+    color: "#B681FF"
   },
   {
     id: "vero-legend",
     name: "Vero Díaz",
     role: "legend",
-    title: "Community founder",
+    title: "Fundadora de una comunidad",
     city: "Buenos Aires",
     community: "Women in Tech Argentina",
-    superpower: "Building bridges that last for years",
-    askMeAbout: "Growing a community without losing its soul",
-    story: "Vero has spent a decade helping underrepresented technologists become visible leaders.",
-    color: "#A98BFF"
+    superpower: "Construir puentes que duran años",
+    askMeAbout: "hacer crecer una comunidad sin perder su esencia",
+    story: "Vero lleva una década ayudando a que más personas encuentren un lugar visible en tecnología.",
+    color: "#679CFF"
   }
 ];
 
 export const demoQuests: Quest[] = [
-  { id: "first-hello", title: "First hello", description: "Meet your first community builder.", target: 1 },
-  { id: "builder-circle", title: "Builder circle", description: "Meet two people who build communities or projects.", target: 2, role: "builder" },
-  { id: "constellation", title: "Community constellation", description: "Discover four different people at Nerdearla.", target: 4 }
+  { id: "first-hello", title: "Primer hola", description: "Conocé a tu primera persona de la comunidad.", target: 1 },
+  { id: "builder-circle", title: "Círculo builder", description: "Conocé a dos personas que construyen comunidades o proyectos.", target: 2, role: "builder" },
+  { id: "constellation", title: "Constelación de comunidad", description: "Descubrí a cuatro personas diferentes en Nerdearla.", target: 4 }
 ];

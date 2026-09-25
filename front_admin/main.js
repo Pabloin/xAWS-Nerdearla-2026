@@ -17,7 +17,7 @@ const state = {
 const escapeHtml = (value) => String(value ?? "").replace(/[&<>"']/g, (char) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]);
 
 document.querySelector("#app").innerHTML = `
-  <header class="topbar"><a class="brand" href="${homeUrl}" aria-label="Comunid"><span class="brand-mark">✳</span> comunid<span class="brand-dot">.</span> <small>STUDIO</small></a><div class="topbar-right"><span class="environment" id="environment">SIN CONEXIÓN</span><button id="logout" type="button" hidden>Salir</button></div></header>
+  <header class="topbar"><a class="brand" href="${homeUrl}" aria-label="Comunid"><img src="/brand/logo-comunid-app.png" alt="Comunid.app" /><small>STUDIO</small></a><div class="topbar-right"><span class="environment" id="environment">SIN CONEXIÓN</span><button id="logout" type="button" hidden>Salir</button></div></header>
   <main class="shell">
     <section class="intro"><div><p class="eyebrow">HERRAMIENTAS PARA ORGANIZADORES</p><h1>Las historias tienen <em>rostro.</em></h1><p>Revisá las fotos del evento, identificá a quienes eligieron participar y prepará sus perfiles para el próximo encuentro.</p></div><span class="intro-symbol" aria-hidden="true">✳</span></section>
 
