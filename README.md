@@ -203,8 +203,11 @@ facial consent deletes its vector from the collection.
 
 ## Hero location sharing
 
-Create Matías and Ricardo as consented `Hero` profiles in the organizer studio.
-Select each profile and choose **Crear enlace privado**. Send each one only their
+The hero page offers Matias Kreder, Rossana Suarez (Roxs), Ricardo Ceci, and
+Damian Olguin in a selector. Selecting a hero shows their QR, which points to
+their passport profile in the mobile app. The four profiles must be present in
+the event data for scans to count. To let one of them share location, select
+their profile in the organizer studio and choose **Crear enlace privado**. Send each one only their
 own `https://hero.comunid.app/#...` link. Issuing a new link revokes the old
 one and clears its current location. The link is a bearer credential; keep it
 private. It is removed from the browser address bar and held only in that tab.

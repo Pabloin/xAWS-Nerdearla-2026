@@ -12,9 +12,25 @@
       <section class="hero-panel">
         <span class="eyebrow">TU UBICACIÓN, TU DECISIÓN</span>
         <h1>Que la comunidad <em>te encuentre.</em></h1>
-        <p id="intro">Abrí tu enlace privado para compartir tu ubicación durante el evento.</p>
-        <div id="identity" hidden><strong id="hero-name"></strong><small>Solo vos podés activar o detener la ubicación.</small></div>
-        <p id="status" role="status" aria-live="polite">Verificando acceso…</p>
+        <p id="intro">Elegí tu perfil y mostrá el QR para sumar encuentros al pasaporte.</p>
+        <label class="hero-select-label" for="hero-select">Elegí tu Hero</label>
+        <select id="hero-select">
+          <option value="">Seleccioná tu nombre</option>
+          <option value="matias-kreder">Matias Kreder</option>
+          <option value="rossana-suarez">Rossana Suarez (Roxs)</option>
+          <option value="ricardo-ceci">Ricardo Ceci</option>
+          <option value="damian-olguin">Damian Olguin</option>
+        </select>
+        <div id="hero-qr" class="hero-qr" hidden>
+          <img id="qr-image" alt="" />
+          <strong id="qr-name"></strong>
+          <small>Pedile a la otra persona que escanee este QR desde su pasaporte.</small>
+        </div>
+        <div id="access" class="hero-access" hidden>
+          <label for="hero-code">Código privado para compartir ubicación</label>
+          <div><input id="hero-code" type="password" autocomplete="off" placeholder="Pegá tu código privado" /><button id="connect" type="button">Habilitar</button></div>
+        </div>
+        <p id="status" role="status" aria-live="polite">Elegí tu Hero para empezar.</p>
         <button id="start" type="button" hidden>Compartir mi ubicación</button>
         <button id="stop" type="button" hidden>Dejar de compartir</button>
         <p class="privacy">Tu ubicación se ve en la app durante 2 minutos desde la última actualización. Si cerrás esta página o bloqueás el teléfono, las actualizaciones pueden detenerse. Mantené la página abierta mientras quieras compartir.</p>

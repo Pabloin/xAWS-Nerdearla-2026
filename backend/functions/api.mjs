@@ -459,7 +459,10 @@ async function listProfiles(event) {
     ExpressionAttributeValues: { ":pk": `EVENT#${defaultEventId}`, ":prefix": "PROFILE#" }
   }));
   const profiles = (result.Items || []).filter((item) => item.consent === true).map(profileFromItem);
-  return json(event, 200, { eventId: defaultEventId, profiles: profiles.length ? profiles : demoProfiles });
+  const ids = new Set(profiles.map((profile) => profile.id));
+  return json(event, 200, { eventId: defaultEventId, profiles: [
+    ...profiles, ...demoProfiles.filter((profile) => !ids.has(profile.id))
+  ] });
 }
 
 async function getProfile(event, profileId) {

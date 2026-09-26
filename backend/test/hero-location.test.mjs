@@ -27,6 +27,9 @@ test("only an invited hero can publish a fresh, revocable location", async () =>
     throw new Error(`Unexpected command: ${command.constructor.name}`);
   };
   try {
+    const profiles = JSON.parse((await handler(request("GET", "/profiles"))).body).profiles;
+    assert.ok(profiles.some((profile) => profile.id === "matias"));
+    assert.ok(profiles.some((profile) => profile.id === "ana-cloud"));
     assert.equal((await handler(request("POST", "/admin/heroes/matias/link"))).statusCode, 401);
     const link = await handler(request("POST", "/admin/heroes/matias/link", "Bearer test-admin-token"));
     assert.equal(link.statusCode, 201);
