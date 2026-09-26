@@ -17,7 +17,7 @@ function handler(event) {
   }
 
   if (heroDomain && host === heroDomain) {
-    if (uri.indexOf("/assets/") !== 0 && uri.indexOf("/brand/") !== 0) request.uri = "/hero.html";
+    if (uri.indexOf("/assets/") !== 0 && uri.indexOf("/brand/") !== 0 && uri.indexOf("/app/heros/") !== 0) request.uri = "/hero.html";
     return request;
   }
 

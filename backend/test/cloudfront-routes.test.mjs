@@ -43,6 +43,7 @@ test("serves the hero broadcaster from its subdomain", () => {
   assert.equal(rewrite("/", "hero.comunid.app").uri, "/hero.html");
   assert.equal(rewrite("/start", "hero.comunid.app").uri, "/hero.html");
   assert.equal(rewrite("/assets/hero.js", "hero.comunid.app").uri, "/assets/hero.js");
+  assert.equal(rewrite("/app/heros/hero-matias-kreder.png", "hero.comunid.app").uri, "/app/heros/hero-matias-kreder.png");
 });
 
 test("redirects www to the root domain", () => {

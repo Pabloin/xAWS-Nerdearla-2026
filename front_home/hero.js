@@ -10,10 +10,10 @@ const heroes = new Map([
   ["damian-olguin", "Damian Olguin"],
 ]);
 const heroPhotoFiles = {
-  "matias-kreder": "hero-04-matias-kreder.png",
-  "rossana-suarez": "hero-02-rossana-suarez.png",
-  "ricardo-ceci": "hero-03-ricardo-ceci.png",
-  "damian-olguin": "hero-01-damian-olguin.png",
+  "matias-kreder": "hero-matias-kreder.png",
+  "rossana-suarez": "hero-rossana-suarez.png",
+  "ricardo-ceci": "hero-ricardo-ceci.png",
+  "damian-olguin": "hero-damian-olguin.png",
 };
 const select = document.querySelector("#hero-select");
 const qr = document.querySelector("#hero-qr");

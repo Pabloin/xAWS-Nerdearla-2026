@@ -69,7 +69,7 @@ resource "aws_apigatewayv2_api" "http" {
   name          = "${var.project_name}-${var.environment}-api"
   protocol_type = "HTTP"
   cors_configuration {
-    allow_headers = ["content-type", "authorization"]
+    allow_headers = ["content-type", "authorization", "x-hero-profile-id"]
     allow_methods = ["GET", "POST", "PUT", "DELETE", "OPTIONS"]
     allow_origins = var.allowed_origins
     max_age       = 3600
