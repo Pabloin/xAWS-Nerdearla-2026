@@ -10,6 +10,7 @@ import {
   Gift,
   ImagePlus,
   LockKeyhole,
+  LogOut,
   Mail,
   MapPin,
   QrCode,
@@ -17,6 +18,7 @@ import {
   Sparkles,
   Trophy,
   Users,
+  UserRound,
   X,
 } from "lucide-react";
 import QRCode from "qrcode";
@@ -57,6 +59,7 @@ type View =
   | "guest-entry"
   | "login"
   | "discover"
+  | "profile"
   | "scan"
   | "selfie"
   | "success"
@@ -173,7 +176,16 @@ function App() {
   const collectedProfiles = profiles.filter((profile) =>
     collectedIds.has(profile.id),
   );
-  const rewardUnlocked = collectedProfiles.length >= 5;
+  const heroEncounters = collectedProfiles.filter((profile) => profile.role === "hero").length;
+  const builderEncounters = collectedProfiles.filter((profile) => profile.role === "builder").length;
+  const studentEncounters = collectedProfiles.filter((profile) => profile.role === "student").length;
+  const userGroupBadgeEarned = collectedProfiles.length >= 3;
+  const rewardUnlocked =
+    collectedProfiles.length >= 5 &&
+    heroEncounters >= 2 &&
+    builderEncounters >= 1 &&
+    userGroupBadgeEarned &&
+    studentEncounters >= 1;
   useEffect(() => {
     setContactEmail(guest?.guest.email ?? "");
   }, [guest?.guest.email]);
@@ -358,10 +370,12 @@ function App() {
   }
   async function endSession() {
     try {
-      await logout();
+      if (session) await logout();
+      if (guest) saveGuestSession(null);
       setSession(null);
+      setGuest(null);
       setEncounters([]);
-      setView(guest ? "discover" : "welcome");
+      setView("welcome");
     } catch {
       setAuthMessage("No pudimos cerrar la sesión. Intentá de nuevo.");
     }
@@ -734,7 +748,11 @@ function App() {
           >
             <Brand />
           </button>
-          {view === "scan" || view === "selfie" ? (
+          {session || guest ? (
+            <button className="topbar-disconnect" type="button" onClick={() => void endSession()}>
+              <LogOut size={16} /> Desconectar
+            </button>
+          ) : view === "scan" || view === "selfie" ? (
             <span className="icon-button top-action">
               <Camera size={20} />
             </span>
@@ -800,6 +818,19 @@ function App() {
           </section>}
         </main>
       )}
+      {view === "profile" && (
+        <main className="page account-page">
+          <span className="eyebrow">MI CUENTA</span>
+          <h1>Mi perfil</h1>
+          <p className="page-subtitle">Tus datos para identificar tu pasaporte y contactarte por los premios.</p>
+          <section className="account-card" aria-label="Datos de tu perfil">
+            <span className="account-avatar"><UserRound size={28} /></span>
+            <div className="account-field"><small>NOMBRE</small><strong>{session?.name || session?.email.split("@")[0] || guest?.guest.name || "Participante"}</strong></div>
+            <div className="account-field"><small>CORREO PARA CONTACTO</small><strong>{session?.email || guest?.guest.email || "Sin correo registrado"}</strong></div>
+            {!session && !guest?.guest.email && <p>No hay un correo asociado a este pasaporte.</p>}
+          </section>
+        </main>
+      )}
       {view === "passport" && (
         <main className="page passport-page">
           <div className="page-center">
@@ -833,13 +864,13 @@ function App() {
             </span>
             <div className="ticket-progress">
               <strong>
-                {collectedProfiles.length} de {profiles.length} encuentros
+                {Math.min(collectedProfiles.length, 5)} de 5 encuentros
               </strong>
               <div className="segments">
-                {profiles.map((profile) => (
+                {Array.from({ length: 5 }, (_, index) => (
                   <i
-                    key={profile.id}
-                    className={collectedIds.has(profile.id) ? "filled" : ""}
+                    key={index}
+                    className={index < collectedProfiles.length ? "filled" : ""}
                   />
                 ))}
               </div>
@@ -855,16 +886,13 @@ function App() {
           <div className="badge-grid">
             {(
               [
-                "hero",
-                "builder",
-                "community",
-                "student",
+                { role: "hero", label: "Hero", count: heroEncounters, target: 2 },
+                { role: "builder", label: "Builder", count: builderEncounters, target: 1 },
+                { role: "community", label: "User Group", count: userGroupBadgeEarned ? 1 : 0, target: 1 },
+                { role: "student", label: "Student", count: studentEncounters, target: 1 },
               ] as const
-            ).map((role) => {
-              const found =
-                role === "community"
-                  ? collectedProfiles.length >= 3
-                  : collectedProfiles.some((profile) => profile.role === role);
+            ).map(({ role, label, count, target }) => {
+              const found = count >= target;
               return (
                 <div
                   className={found ? "badge-item earned" : "badge-item"}
@@ -874,11 +902,9 @@ function App() {
                     {found ? <Users size={30} /> : <LockKeyhole size={24} />}
                   </span>
                   <strong>
-                    {role === "community"
-                      ? "User Group"
-                      : role[0].toUpperCase() + role.slice(1)}
+                    {label}
                   </strong>
-                  <small>{found ? "1/1" : "0/1"}</small>
+                  <small>{Math.min(count, target)}/{target}</small>
                 </div>
               );
             })}
@@ -889,10 +915,10 @@ function App() {
               <small>{rewardUnlocked ? "PREMIO DESBLOQUEADO" : "PRÓXIMO PREMIO"}</small>
               <strong>
                 {!rewardUnlocked
-                  ? `${5 - collectedProfiles.length} encuentros`
+                  ? `${Math.min(collectedProfiles.length, 5)} de 5 encuentros`
                   : "¡Desbloqueado!"}
               </strong>
-              <small>{rewardUnlocked ? "Tu pasaporte ya tiene cinco encuentros." : "Seguí explorando para desbloquearlo."}</small>
+              <small>{rewardUnlocked ? "Completaste 2 Heroes, 1 Builder, User Group y 1 Student." : "Meta: 2 Heroes, 1 Builder, User Group y 1 Student."}</small>
             </span>
             <ChevronRight size={20} />
           </div>
@@ -1174,14 +1200,14 @@ function App() {
             <span>
               <small>TU PASAPORTE</small>
               <strong>
-                {collectedProfiles.length} de {profiles.length} encuentros
+                {Math.min(collectedProfiles.length, 5)} de 5 encuentros
               </strong>
             </span>
             <BookOpen size={24} />
             <div className="progress-track">
               <i
                 style={{
-                  width: `${Math.min(100, (collectedProfiles.length / Math.max(profiles.length, 1)) * 100)}%`,
+                  width: `${Math.min(100, (collectedProfiles.length / 5) * 100)}%`,
                 }}
               />
             </div>
@@ -1237,6 +1263,14 @@ function App() {
           >
             <BookOpen size={22} />
             <span>Pasaporte</span>
+          </button>
+          <button
+            className={view === "profile" ? "active" : ""}
+            type="button"
+            onClick={() => go("profile")}
+          >
+            <UserRound size={21} />
+            <span>Mi perfil</span>
           </button>
         </nav>
       )}

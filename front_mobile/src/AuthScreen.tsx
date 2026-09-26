@@ -33,6 +33,7 @@ export function AuthScreen({
   onBack,
 }: Props) {
   const [mode, setMode] = useState<Mode>(initialMode);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [code, setCode] = useState("");
@@ -57,7 +58,7 @@ export function AuthScreen({
         await login(email, password);
         onAuthenticated();
       } else if (mode === "signup") {
-        const complete = await register(email, password);
+        const complete = await register(name, email, password);
         if (complete) {
           await login(email, password);
           onAuthenticated();
@@ -166,6 +167,24 @@ export function AuthScreen({
         <p>{subtitle}</p>
       </div>
       <form onSubmit={submit}>
+        {mode === "signup" && (
+          <>
+            <label htmlFor="auth-name">Nombre y apellido</label>
+            <div className="input-wrap">
+              <input
+                id="auth-name"
+                type="text"
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder="Tu nombre"
+                required
+                autoComplete="name"
+                maxLength={100}
+                disabled={busy}
+              />
+            </div>
+          </>
+        )}
         <label htmlFor="auth-email">Correo electrónico</label>
         <div className="input-wrap">
           <Mail size={20} />

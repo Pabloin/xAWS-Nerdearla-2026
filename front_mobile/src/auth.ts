@@ -3,6 +3,7 @@ import {
   confirmResetPassword,
   confirmSignUp,
   fetchAuthSession,
+  fetchUserAttributes,
   getCurrentUser,
   resendSignUpCode,
   resetPassword,
@@ -27,17 +28,24 @@ if (authEnabled) {
   });
 }
 
-export type AttendeeSession = { userId: string };
+export type AttendeeSession = { userId: string; name: string; email: string };
 
 export async function currentSession(): Promise<AttendeeSession | null> {
   if (!authEnabled) return null;
   try {
-    const [user, session] = await Promise.all([
+    const [user, session, attributes] = await Promise.all([
       getCurrentUser(),
       fetchAuthSession(),
+      fetchUserAttributes().catch(() => null),
     ]);
     const accessToken = session.tokens?.accessToken?.toString();
-    return accessToken ? { userId: user.userId } : null;
+    return accessToken
+      ? {
+          userId: user.userId,
+          name: attributes?.name || "",
+          email: attributes?.email || (user.username.includes("@") ? user.username : ""),
+        }
+      : null;
   } catch {
     return null;
   }
@@ -59,13 +67,14 @@ export async function login(email: string, password: string): Promise<void> {
 }
 
 export async function register(
+  name: string,
   email: string,
   password: string,
 ): Promise<boolean> {
   const result = await signUp({
     username: email.trim(),
     password,
-    options: { userAttributes: { email: email.trim() } },
+    options: { userAttributes: { email: email.trim(), name: name.trim() } },
   });
   return result.isSignUpComplete;
 }
