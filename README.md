@@ -57,7 +57,8 @@ previewed locally before those resources are available.
 
 The deployment keeps the three frontends in one web bucket. Production serves
 the landing page at `comunid.app`, the mobile app at `mobile.comunid.app`, and
-the organizer studio at `admin.comunid.app`. The `/app/` and `/admin/` paths
+the organizer studio at `admin.comunid.app`. The private hero broadcaster is at
+`hero.comunid.app`. The `/app/` and `/admin/` paths
 remain available on the root domain. `www.comunid.app` redirects to the root.
 
 Run all checks:
@@ -81,8 +82,11 @@ The Lambda exposes:
 - `POST /guests` — creates a guest passport from a name
 - `GET /guests/me`, `GET /guests/me/encounters`, `POST /guests/me/encounters` — guest access using its private token
 - `PUT /guests/me/contact`, `DELETE /guests/me/contact` — optional email opt-in after five encounters, and withdrawal
+- `GET /heroes/live` — currently shared hero locations, visible for two minutes after the last update
+- `GET /heroes/me`, `PUT /heroes/me/location`, `DELETE /heroes/me/location` — private hero link required
 - `GET /admin/session` and `GET /admin/profiles`
 - `POST /admin/profiles`
+- `POST /admin/heroes/{profileId}/link` — issues or rotates a private location-sharing link for a consented Hero profile
 - `PUT /admin/profiles/{id}/face-consent` — records or withdraws facial consent
 - `POST /admin/detect-faces` — finds faces in a photo without saving them
 - `POST /admin/faces` — indexes one reviewed face for a consented profile
@@ -196,6 +200,20 @@ It sends only the selected face crops for indexing. The original group photo
 is kept in the browser, not stored by the API. Rekognition stores face
 vectors; DynamoDB stores profile and face IDs. Removing a face or withdrawing
 facial consent deletes its vector from the collection.
+
+## Hero location sharing
+
+Create Matías and Ricardo as consented `Hero` profiles in the organizer studio.
+Select each profile and choose **Crear enlace privado**. Send each one only their
+own `https://hero.comunid.app/#...` link. Issuing a new link revokes the old
+one and clears its current location. The link is a bearer credential; keep it
+private. It is removed from the browser address bar and held only in that tab.
+
+On the hero page, the person explicitly starts location sharing and can stop
+it at any time. The mobile app polls `GET /heroes/live` and shows only updates
+from the last two minutes. No location history is written. Browser location
+updates may stop when the phone locks or the page goes to the background; the
+public location then disappears automatically.
 
 ## Product direction
 

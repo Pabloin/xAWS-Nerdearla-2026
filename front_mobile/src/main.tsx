@@ -65,6 +65,7 @@ const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(
   /\/$/,
   "",
 );
+type LiveHero = { profileId: string; name: string; latitude: number; longitude: number; accuracy: number; updatedAt: string };
 function readEncounters(): Encounter[] {
   try {
     const value = JSON.parse(localStorage.getItem(encounterKey) ?? "[]");
@@ -122,6 +123,7 @@ function App() {
   const [contactMessage, setContactMessage] = useState("");
   const [authMessage, setAuthMessage] = useState("");
   const [profiles, setProfiles] = useState<BuilderProfile[]>(demoProfiles);
+  const [liveHeroes, setLiveHeroes] = useState<LiveHero[]>([]);
   const [encounters, setEncounters] = useState<Encounter[]>(() =>
     apiBaseUrl ? [] : readEncounters(),
   );
@@ -241,6 +243,17 @@ function App() {
           setProfiles(data.profiles);
       })
       .catch(() => undefined);
+  }, []);
+  useEffect(() => {
+    if (!apiBaseUrl) return;
+    let active = true;
+    const refresh = () => fetch(`${apiBaseUrl}/heroes/live`)
+      .then((response) => response.ok ? response.json() : Promise.reject())
+      .then((data) => { if (active) setLiveHeroes(Array.isArray(data.heroes) ? data.heroes : []); })
+      .catch(() => { if (active) setLiveHeroes([]); });
+    void refresh();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
   useEffect(() => {
     if (deepLinkHandled.current || (!session && !guest)) return;
@@ -750,6 +763,16 @@ function App() {
               </button>
             ))}
           </div>
+          {liveHeroes.length > 0 && <section className="live-heroes" aria-label="Héroes compartiendo ubicación">
+            <span className="eyebrow">HÉROES EN VIVO</span>
+            <h2>Encontralos en el evento</h2>
+            <p>Ubicación aproximada; puede variar dentro del edificio.</p>
+            {liveHeroes.map((hero) => <a key={hero.profileId} className="live-hero" href={`https://www.openstreetmap.org/?mlat=${hero.latitude}&mlon=${hero.longitude}#map=18/${hero.latitude}/${hero.longitude}`} target="_blank" rel="noopener noreferrer">
+              <span className="live-hero-pulse" aria-hidden="true" />
+              <span><strong>{hero.name}</strong><small>Compartiendo ahora · precisión ±{Math.round(hero.accuracy)} m</small></span>
+              <span aria-hidden="true">↗</span>
+            </a>)}
+          </section>}
           <div className="nearby-card">
             <Avatar profile={profiles[0]} />
             <span>

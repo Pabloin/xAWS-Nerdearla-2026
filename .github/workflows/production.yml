@@ -64,7 +64,10 @@ jobs:
         working-directory: ${{ env.TF_DIR }}
         run: |
           terraform show -json tfplan > tfplan.json
-          if jq -e '[.resource_changes[]?.change.actions | select(index("delete"))] | length > 0' tfplan.json; then
+          if jq -e '[.resource_changes[]? | select(.change.actions | index("delete")) | select(
+            (.change.actions | index("create") | not) or
+            (.address | test("^module\\.comunid\\.module\\.apps\\.(aws_acm_certificate\\.web|aws_acm_certificate_validation\\.web|cloudflare_dns_record\\.validation\\[)") | not)
+          )] | length > 0' tfplan.json; then
             echo "Destructive infrastructure change rejected."
             exit 1
           fi

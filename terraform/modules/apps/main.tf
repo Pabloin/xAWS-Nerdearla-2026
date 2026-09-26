@@ -58,6 +58,7 @@ resource "aws_cloudfront_function" "section_routes" {
   code = templatefile("${path.module}/route-rewrite.js", {
     mobile_domain = lookup(var.additional_domains, "mobile", "")
     admin_domain  = lookup(var.additional_domains, "admin", "")
+    hero_domain   = lookup(var.additional_domains, "hero", "")
     www_domain    = lookup(var.additional_domains, "www", "")
     root_domain   = var.domain_name
   })

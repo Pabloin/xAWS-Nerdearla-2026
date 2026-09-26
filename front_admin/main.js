@@ -129,7 +129,16 @@ async function selectProfile(profileId) {
   renderProfiles();
   const data = await api(`/admin/profiles/${encodeURIComponent(profileId)}/faces`);
   const profile = state.profiles.find((item) => item.id === profileId);
-  $("#face-registry").innerHTML = `<div class="registry-heading"><strong>${escapeHtml(profile?.name || profileId)}</strong><span>${data.faces.length} ${data.faces.length === 1 ? "rostro registrado" : "rostros registrados"}</span></div><div class="consent-toolbar"><span>${profile?.faceConsent ? "Consentimiento facial registrado" : "Sin consentimiento facial"}</span><button type="button" id="face-consent-toggle">${profile?.faceConsent ? "Retirar consentimiento" : "Registrar consentimiento"}</button></div>${data.faces.length ? data.faces.map((face) => `<div class="registry-row"><span>Face ID ${escapeHtml(face.faceId.slice(0, 8))}… <small>${escapeHtml(new Date(face.createdAt).toLocaleDateString("es-AR"))}</small></span><button type="button" data-delete-face="${escapeHtml(face.faceId)}" aria-label="Eliminar rostro">Eliminar</button></div>`).join("") : `<p class="inline-empty">Todavía no tiene rostros registrados.</p>`}`;
+  $("#face-registry").innerHTML = `<div class="registry-heading"><strong>${escapeHtml(profile?.name || profileId)}</strong><span>${data.faces.length} ${data.faces.length === 1 ? "rostro registrado" : "rostros registrados"}</span></div>${profile?.role === "hero" ? `<div class="consent-toolbar"><span>Compartir ubicación</span><button type="button" id="hero-link-button">Crear enlace privado</button></div><div id="hero-link-result" hidden></div>` : ""}<div class="consent-toolbar"><span>${profile?.faceConsent ? "Consentimiento facial registrado" : "Sin consentimiento facial"}</span><button type="button" id="face-consent-toggle">${profile?.faceConsent ? "Retirar consentimiento" : "Registrar consentimiento"}</button></div>${data.faces.length ? data.faces.map((face) => `<div class="registry-row"><span>Face ID ${escapeHtml(face.faceId.slice(0, 8))}… <small>${escapeHtml(new Date(face.createdAt).toLocaleDateString("es-AR"))}</small></span><button type="button" data-delete-face="${escapeHtml(face.faceId)}" aria-label="Eliminar rostro">Eliminar</button></div>`).join("") : `<p class="inline-empty">Todavía no tiene rostros registrados.</p>`}`;
+  $("#hero-link-button")?.addEventListener("click", () => withBusy(async () => {
+    if (!window.confirm("¿Crear un enlace privado? El enlace anterior dejará de funcionar y se detendrá la ubicación actual.")) return;
+    const result = await api(`/admin/heroes/${encodeURIComponent(profileId)}/link`, { method: "POST" });
+    const container = $("#hero-link-result");
+    container.hidden = false;
+    container.innerHTML = `<p>Copiá este enlace y envialo solo a ${escapeHtml(profile.name)}. No volverá a mostrarse.</p><input aria-label="Enlace privado del héroe" readonly />`;
+    container.querySelector("input").value = result.url;
+    container.querySelector("input").select();
+  }));
   $("#face-consent-toggle").addEventListener("click", () => updateFaceConsent(profileId, !profile?.faceConsent));
   $("#face-registry").querySelectorAll("[data-delete-face]").forEach((button) => button.addEventListener("click", () => deleteFace(profileId, button.dataset.deleteFace)));
 }

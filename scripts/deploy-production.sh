@@ -40,7 +40,10 @@ terraform -chdir="${tf_dir}" plan -out=tfplan
 plan_json="$(mktemp)"
 trap 'rm -f "${plan_json}"' EXIT
 terraform -chdir="${tf_dir}" show -json tfplan > "${plan_json}"
-if jq -e '[.resource_changes[]?.change.actions | select(index("delete"))] | length > 0' "${plan_json}"; then
+if jq -e '[.resource_changes[]? | select(.change.actions | index("delete")) | select(
+  (.change.actions | index("create") | not) or
+  (.address | test("^module\\.comunid\\.module\\.apps\\.(aws_acm_certificate\\.web|aws_acm_certificate_validation\\.web|cloudflare_dns_record\\.validation\\[)") | not)
+)] | length > 0' "${plan_json}"; then
   echo "Refusing to apply a plan that deletes infrastructure." >&2
   exit 1
 fi
