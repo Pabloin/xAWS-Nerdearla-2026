@@ -3,6 +3,7 @@ module "comunid" {
   environment = "production"
   domain_name = "comunid.app"
   additional_domains = {
+    app    = "app.comunid.app"
     mobile = "mobile.comunid.app"
     admin  = "admin.comunid.app"
     hero   = "hero.comunid.app"

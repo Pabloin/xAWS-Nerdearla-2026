@@ -5,6 +5,7 @@ import test from "node:test";
 
 const source = readFileSync(new URL("../../terraform/modules/apps/route-rewrite.js", import.meta.url), "utf8")
   .replaceAll("${mobile_domain}", "mobile.comunid.app")
+  .replaceAll("${app_domain}", "app.comunid.app")
   .replaceAll("${admin_domain}", "admin.comunid.app")
   .replaceAll("${hero_domain}", "hero.comunid.app")
   .replaceAll("${www_domain}", "www.comunid.app")
@@ -31,6 +32,9 @@ test("serves the mobile and admin applications from their subdomains", () => {
   assert.equal(rewrite("/", "mobile.comunid.app").uri, "/app/index.html");
   assert.equal(rewrite("/profiles", "mobile.comunid.app").uri, "/app/index.html");
   assert.equal(rewrite("/assets/app.js", "mobile.comunid.app").uri, "/app/assets/app.js");
+  assert.equal(rewrite("/", "app.comunid.app").uri, "/app/index.html");
+  assert.equal(rewrite("/profiles", "app.comunid.app").uri, "/app/index.html");
+  assert.equal(rewrite("/assets/app.js", "app.comunid.app").uri, "/app/assets/app.js");
   assert.equal(rewrite("/", "admin.comunid.app").uri, "/admin/index.html");
   assert.equal(rewrite("/faces", "admin.comunid.app").uri, "/admin/index.html");
 });

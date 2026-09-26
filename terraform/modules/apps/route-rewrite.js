@@ -3,6 +3,7 @@ function handler(event) {
   var uri = request.uri;
   var host = request.headers && request.headers.host ? request.headers.host.value.toLowerCase() : "";
   var mobileDomain = "${mobile_domain}";
+  var appDomain = "${app_domain}";
   var adminDomain = "${admin_domain}";
   var heroDomain = "${hero_domain}";
   var wwwDomain = "${www_domain}";
@@ -20,7 +21,7 @@ function handler(event) {
     return request;
   }
 
-  var hostSection = mobileDomain && host === mobileDomain ? "/app" : adminDomain && host === adminDomain ? "/admin" : "";
+  var hostSection = (mobileDomain && host === mobileDomain) || (appDomain && host === appDomain) ? "/app" : adminDomain && host === adminDomain ? "/admin" : "";
   if (hostSection && uri.indexOf("/app/") !== 0 && uri.indexOf("/admin/") !== 0 && uri.indexOf("/b/") !== 0) {
     request.uri = hostSection + (uri === "/" ? "/index.html" : uri);
     uri = request.uri;
