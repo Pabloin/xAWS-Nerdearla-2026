@@ -22,12 +22,34 @@ const start = document.querySelector("#start");
 const stop = document.querySelector("#stop");
 const access = document.querySelector("#access");
 const code = document.querySelector("#hero-code");
+const map = document.querySelector("#hero-map");
+const mapFrame = document.querySelector("#map-frame");
+const mapAccuracy = document.querySelector("#map-accuracy");
 let token = sessionStorage.getItem(tokenKey) || "";
 let authorizedHeroId = sessionStorage.getItem(profileKey) || "";
 let watchId = null;
 let heartbeat = null;
 let lastSent = 0;
 let sending = false;
+let pendingPublish = null;
+
+function showPublishedPosition(latitude, longitude, accuracy) {
+  const latitudeSpan = 0.0025;
+  const longitudeSpan = latitudeSpan / Math.max(Math.cos(latitude * Math.PI / 180), 0.2);
+  const query = new URLSearchParams({
+    bbox: [longitude - longitudeSpan, latitude - latitudeSpan, longitude + longitudeSpan, latitude + latitudeSpan].join(","),
+    layer: "mapnik",
+    marker: `${latitude},${longitude}`,
+  });
+  mapFrame.src = `https://www.openstreetmap.org/export/embed.html?${query}`;
+  mapAccuracy.textContent = `Precisión aproximada ±${Math.round(accuracy)} m`;
+  map.hidden = false;
+}
+
+function hidePublishedPosition() {
+  map.hidden = true;
+  mapFrame.removeAttribute("src");
+}
 
 function message(text, error = false) {
   status.textContent = text;
@@ -97,12 +119,15 @@ async function publish(position) {
   sending = true;
   try {
     const { latitude, longitude, accuracy } = position.coords;
-    await request("/heroes/me/location", { method: "PUT", body: JSON.stringify({ latitude, longitude, accuracy }) });
+    pendingPublish = request("/heroes/me/location", { method: "PUT", body: JSON.stringify({ latitude, longitude, accuracy }) });
+    await pendingPublish;
     lastSent = Date.now();
+    if (watchId !== null) showPublishedPosition(latitude, longitude, accuracy);
     message(`Compartiendo ubicación · precisión aproximada ${Math.round(accuracy)} m · actualizado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
   } catch {
     message("No pudimos actualizar tu ubicación. Revisá la conexión.", true);
   } finally {
+    pendingPublish = null;
     sending = false;
   }
 }
@@ -136,7 +161,9 @@ stop.addEventListener("click", async () => {
   clearInterval(heartbeat);
   stop.disabled = true;
   try {
+    if (pendingPublish) await pendingPublish.catch(() => undefined);
     await request("/heroes/me/location", { method: "DELETE" });
+    hidePublishedPosition();
     message("Dejaste de compartir tu ubicación. El QR sigue disponible.");
     start.hidden = false;
     stop.hidden = true;
