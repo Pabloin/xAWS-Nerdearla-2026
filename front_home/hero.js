@@ -168,7 +168,7 @@ stop.addEventListener("click", async () => {
     start.hidden = false;
     stop.hidden = true;
   } catch {
-    message("No pudimos detener la ubicación en el servidor. Probá otra vez; si no hay actualizaciones desaparece en 2 minutos.", true);
+    message("No pudimos detener la ubicación en el servidor. Probá otra vez; si no hay actualizaciones desaparece en 10 minutos.", true);
   } finally {
     select.disabled = false;
     stop.disabled = false;

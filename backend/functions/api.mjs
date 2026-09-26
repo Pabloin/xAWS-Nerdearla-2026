@@ -15,7 +15,7 @@ const adminToken = process.env.ADMIN_TOKEN || "";
 const adminSecretArn = process.env.ADMIN_SECRET_ARN || "";
 const faceCollectionId = process.env.FACE_COLLECTION_ID || "";
 const allowedOrigins = new Set((process.env.ALLOWED_ORIGINS || "http://127.0.0.1:5190,http://127.0.0.1:5192,https://comunid.app").split(",").map((origin) => origin.trim()));
-const heroLocationLifetimeMs = 2 * 60 * 1000;
+const heroLocationLifetimeMs = 10 * 60 * 1000;
 const database = DynamoDBDocumentClient.from(new DynamoDBClient({}));
 const rekognition = new RekognitionClient({});
 const secrets = new SecretsManagerClient({});
@@ -124,6 +124,24 @@ async function heroFromRequest(event) {
   return profile?.consent === true ? profile : null;
 }
 
+async function communityFromRequest(event) {
+  const authorization = event.headers?.authorization || event.headers?.Authorization || "";
+  const match = /^Community ([A-Za-z0-9_-]{1,80})\.([A-Za-z0-9_-]{43})$/.exec(authorization);
+  if (!match) return null;
+  const keys = [`COMMUNITY#${match[1]}`, `HERO#${match[1]}`];
+  let access = null;
+  for (const pk of keys) {
+    const result = await database.send(new GetCommand({ TableName: tableName, Key: { pk, sk: "ACCESS" } }));
+    if (result.Item) { access = result.Item; break; }
+  }
+  if (!access || access.eventId !== defaultEventId) return null;
+  const actual = createHash("sha256").update(match[2]).digest();
+  const expected = Buffer.from(access.tokenHash || "", "hex");
+  if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
+  const profile = await persistedProfile(match[1]);
+  return profile?.consent === true && profile.id.startsWith("member-") ? profile : null;
+}
+
 async function createHeroLink(event, profileId) {
   const profile = await persistedProfile(profileId);
   if (!profile || profile.consent !== true || profile.role !== "hero") {
@@ -167,27 +185,57 @@ async function registerCommunityMember(event) {
     Item: { pk: `EVENT#${defaultEventId}`, sk: `PROFILE#${profileId}`, entityType: "PROFILE", eventId: defaultEventId, ...profile, createdAt: timestamp, updatedAt: timestamp },
     ConditionExpression: "attribute_not_exists(pk) AND attribute_not_exists(sk)" }));
   if (photoItem) await database.send(new PutCommand({ TableName: tableName, Item: photoItem }));
-  await database.send(new PutCommand({ TableName: tableName, Item: { pk: `HERO#${profileId}`, sk: "ACCESS", eventId: defaultEventId,
+  await database.send(new PutCommand({ TableName: tableName, Item: { pk: `COMMUNITY#${profileId}`, sk: "ACCESS", eventId: defaultEventId,
     tokenHash: createHash("sha256").update(secret).digest("hex"), updatedAt: timestamp } }));
   return json(event, 201, { profileId, name, role, community, token: `${profileId}.${secret}` });
 }
 
 async function communityRoute(event, method, parts) {
-  if (method !== "GET" || parts[1] !== "live" || parts.length !== 2) return json(event, 404, { error: "not_found" });
-  const profiles = await queryAll({ TableName: tableName,
-    KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
-    ExpressionAttributeValues: { ":pk": `EVENT#${defaultEventId}`, ":prefix": "PROFILE#" }
-  });
-  const sharing = await Promise.all(profiles.filter((profile) => profile.consent === true).map(async (profile) => {
-    const result = await database.send(new GetCommand({ TableName: tableName,
-      Key: { pk: `HERO#${profile.id}`, sk: "LOCATION" } }));
-    const location = result.Item;
-    return location && location.expiresAt > Date.now()
-      ? { profileId: profile.id, name: profile.name, role: profile.role, community: profile.community,
-          latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, updatedAt: location.updatedAt }
-      : null;
-  }));
-  return json(event, 200, { people: sharing.filter(Boolean) });
+  if (method === "POST" && parts[1] === "register" && parts.length === 2) return registerCommunityMember(event);
+  if (method === "GET" && parts[1] === "live" && parts.length === 2) {
+    const profiles = await queryAll({ TableName: tableName,
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+      ExpressionAttributeValues: { ":pk": `EVENT#${defaultEventId}`, ":prefix": "PROFILE#" }
+    });
+    const sharing = await Promise.all(profiles.filter((profile) => profile.consent === true).map(async (profile) => {
+      const result = await database.send(new GetCommand({ TableName: tableName,
+        Key: { pk: `HERO#${profile.id}`, sk: "LOCATION" } }));
+      const location = result.Item;
+      return location && location.expiresAt > Date.now()
+        ? { profileId: profile.id, name: profile.name, role: profile.role, community: profile.community,
+            latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, updatedAt: location.updatedAt }
+        : null;
+    }));
+    return json(event, 200, { people: sharing.filter(Boolean) });
+  }
+  const profile = await communityFromRequest(event);
+  if (!profile) return json(event, 401, { error: "community_authorization_required" });
+  if (method === "GET" && parts[1] === "me" && parts.length === 2) {
+    return json(event, 200, { profileId: profile.id, name: profile.name, role: profile.role, community: profile.community });
+  }
+  if (parts[1] === "me" && parts[2] === "location" && parts.length === 3) {
+    if (method === "DELETE") {
+      await database.send(new DeleteCommand({ TableName: tableName,
+        Key: { pk: `HERO#${profile.id}`, sk: "LOCATION" } }));
+      return json(event, 200, { sharing: false });
+    }
+    if (method === "PUT") {
+      const input = parseBody(event);
+      const { latitude, longitude, accuracy } = input;
+      if (typeof latitude !== "number" || !Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+          typeof longitude !== "number" || !Number.isFinite(longitude) || longitude < -180 || longitude > 180 ||
+          typeof accuracy !== "number" || !Number.isFinite(accuracy) || accuracy < 0 || accuracy > 10000) {
+        return json(event, 422, { error: "invalid_location" });
+      }
+      const now = Date.now();
+      await database.send(new PutCommand({ TableName: tableName,
+        Item: { pk: `HERO#${profile.id}`, sk: "LOCATION", eventId: defaultEventId,
+          latitude, longitude, accuracy, updatedAt: new Date(now).toISOString(), expiresAt: now + heroLocationLifetimeMs }
+      }));
+      return json(event, 200, { sharing: true, updatedAt: new Date(now).toISOString() });
+    }
+  }
+  return json(event, 404, { error: "not_found" });
 }
 
 async function heroRoute(event, method, parts) {
@@ -602,10 +650,7 @@ export async function handler(event) {
 
   try {
     if (method === "GET" && parts[0] === "health") return json(event, 200, { service: "comunid-api", status: "ok", eventId: defaultEventId });
-    if (parts[0] === "community") {
-      if (method === "POST" && parts[1] === "register" && parts.length === 2) return registerCommunityMember(event);
-      return communityRoute(event, method, parts);
-    }
+    if (parts[0] === "community") return communityRoute(event, method, parts);
     if (parts[0] === "guests") return guestRoute(event, method, parts);
     if (parts[0] === "heroes") return heroRoute(event, method, parts);
     if (parts[0] === "admin") {

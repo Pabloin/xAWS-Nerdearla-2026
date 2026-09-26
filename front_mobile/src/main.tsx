@@ -859,10 +859,6 @@ function App() {
                 "builder",
                 "community",
                 "student",
-                "connector",
-                "legend",
-                "innovator",
-                "creator",
               ] as const
             ).map((role) => {
               const found =
@@ -879,7 +875,7 @@ function App() {
                   </span>
                   <strong>
                     {role === "community"
-                      ? "Community"
+                      ? "User Group"
                       : role[0].toUpperCase() + role.slice(1)}
                   </strong>
                   <small>{found ? "1/1" : "0/1"}</small>

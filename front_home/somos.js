@@ -1,8 +1,10 @@
 import "./hero.css";
 
 const apiBase = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
-const tokenKey = "comunid:hero-access";
-const profileKey = "comunid:hero-profile";
+const tokenKey = "comunid:community-access";
+const profileKey = "comunid:community-profile";
+const oldTokenKey = "comunid:hero-access";
+const oldProfileKey = "comunid:hero-profile";
 const registration = document.querySelector("#registration");
 const nameInput = document.querySelector("#name");
 const communityInput = document.querySelector("#community");
@@ -20,8 +22,8 @@ const stop = document.querySelector("#stop");
 const map = document.querySelector("#hero-map");
 const mapFrame = document.querySelector("#map-frame");
 const mapAccuracy = document.querySelector("#map-accuracy");
-let token = sessionStorage.getItem(tokenKey) || "";
-let profileId = sessionStorage.getItem(profileKey) || "";
+let token = sessionStorage.getItem(tokenKey) || sessionStorage.getItem(oldTokenKey) || "";
+let profileId = sessionStorage.getItem(profileKey) || sessionStorage.getItem(oldProfileKey) || "";
 let profileName = "";
 let watchId = null;
 let heartbeat = null;
@@ -160,6 +162,8 @@ registration.addEventListener("submit", async (event) => {
     profileName = result.name;
     sessionStorage.setItem(tokenKey, token);
     sessionStorage.setItem(profileKey, profileId);
+    sessionStorage.removeItem(oldTokenKey);
+    sessionStorage.removeItem(oldProfileKey);
     showProfile(result);
   } catch (error) {
     message(error instanceof Error ? error.message : "No pudimos crear tu perfil. Revisá la conexión.", true);
@@ -171,7 +175,7 @@ registration.addEventListener("submit", async (event) => {
 async function request(path, options = {}) {
   const response = await fetch(apiBase + path, {
     ...options,
-    headers: { authorization: "Hero " + token, "x-hero-profile-id": profileId,
+    headers: { authorization: "Community " + token,
       ...(options.body ? { "content-type": "application/json" } : {}) },
   });
   const result = await response.json().catch(() => ({}));
@@ -203,7 +207,7 @@ async function publish(position) {
   sending = true;
   try {
     const { latitude, longitude, accuracy } = position.coords;
-    pendingPublish = request("/heroes/me/location", {
+    pendingPublish = request("/community/me/location", {
       method: "PUT",
       body: JSON.stringify({ latitude, longitude, accuracy }),
     });
@@ -211,8 +215,9 @@ async function publish(position) {
     lastSent = Date.now();
     if (watchId !== null) showPublishedPosition(latitude, longitude, accuracy);
     message("Compartiendo ubicación · precisión aproximada " + Math.round(accuracy) + " m · " + profileName);
-  } catch {
-    message("No pudimos actualizar tu ubicación. Revisá la conexión.", true);
+  } catch (error) {
+    const authError = error instanceof Error && error.message === "community_authorization_required";
+    message(authError ? "No pudimos validar tu perfil de comunidad. Volvé a cargar la página y probá otra vez." : "No pudimos actualizar tu ubicación. Revisá la conexión.", true);
   } finally {
     pendingPublish = null;
     sending = false;
@@ -237,34 +242,28 @@ stop.addEventListener("click", async () => {
   stop.disabled = true;
   try {
     if (pendingPublish) await pendingPublish.catch(() => undefined);
-    await request("/heroes/me/location", { method: "DELETE" });
+    await request("/community/me/location", { method: "DELETE" });
     map.hidden = true;
     mapFrame.removeAttribute("src");
     message("Dejaste de compartir tu ubicación. Tu perfil sigue visible.");
     start.hidden = false;
     stop.hidden = true;
   } catch {
-    message("No pudimos detener la ubicación en el servidor. Si no hay actualizaciones, desaparecerá en 2 minutos.", true);
+    message("No pudimos detener la ubicación en el servidor. Si no hay actualizaciones, desaparecerá en 10 minutos.", true);
   } finally {
     stop.disabled = false;
   }
 });
 
-// Compatibility with private links already issued to existing Heroes.
-const fragment = decodeURIComponent(location.hash.slice(1));
-if (fragment && !profileId) {
-  history.replaceState(null, "", location.pathname);
-  token = fragment;
-  profileId = fragment.includes(".") ? fragment.split(".")[0] : "";
-  sessionStorage.setItem(tokenKey, token);
-  sessionStorage.setItem(profileKey, profileId);
-  request("/heroes/me").then((result) => showProfile(result))
-    .catch(() => message("No pudimos validar tu enlace. Pedí uno nuevo a la organización.", true));
-} else if (token && profileId) {
-  request("/heroes/me").then((result) => showProfile(result))
+// Somos accepts only community profiles. Hero links stay on hero.comunid.app.
+if (location.hash) history.replaceState(null, "", location.pathname);
+if (token && profileId) {
+  request("/community/me").then((result) => showProfile(result))
     .catch(() => {
       sessionStorage.removeItem(tokenKey);
       sessionStorage.removeItem(profileKey);
-      message("Completá tus datos para crear tu perfil.");
+      sessionStorage.removeItem(oldTokenKey);
+      sessionStorage.removeItem(oldProfileKey);
+      message("No pudimos recuperar tu perfil. Podés volver a registrarte.", true);
     });
 }
