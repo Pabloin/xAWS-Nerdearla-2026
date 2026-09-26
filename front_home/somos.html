@@ -31,10 +31,16 @@
             <option>AWS Student Builder Groups</option>
             <option>AWS Community Builder</option>
           </select>
-          <label for="photo">Tu foto <small>(opcional)</small></label>
-          <input id="photo" name="photo" type="file" accept="image/*" capture="user" />
+          <span class="photo-label">Foto de perfil <small>(opcional)</small></span>
+          <div class="photo-actions">
+            <button id="camera-button" class="photo-choice" type="button">Sacar una foto</button>
+            <label class="photo-choice" for="photo">Elegir una foto</label>
+            <input id="photo" name="photo" type="file" accept="image/*" capture="user" />
+          </div>
+          <video id="camera-preview" class="camera-preview" autoplay muted playsinline hidden></video>
+          <button id="capture-photo" class="photo-choice capture-photo" type="button" hidden>Usar esta foto</button>
           <img id="photo-preview" class="hero-portrait" alt="Vista previa de tu foto" hidden />
-          <label class="consent-check"><input id="consent" type="checkbox" required /> Acepto aparecer en la comunidad de este evento.</label>
+          <label class="consent-check"><input id="consent" type="checkbox" required /> Acepto publicar mi perfil y, si agrego una, mi foto en la comunidad de este evento.</label>
           <button id="join" type="submit">Crear mi perfil</button>
         </form>
         <div id="hero-qr" class="hero-qr" hidden>

@@ -9,6 +9,9 @@ const communityInput = document.querySelector("#community");
 const roleInput = document.querySelector("#role");
 const photoInput = document.querySelector("#photo");
 const photoPreview = document.querySelector("#photo-preview");
+const cameraButton = document.querySelector("#camera-button");
+const cameraPreview = document.querySelector("#camera-preview");
+const capturePhoto = document.querySelector("#capture-photo");
 const joinButton = document.querySelector("#join");
 const qr = document.querySelector("#hero-qr");
 const status = document.querySelector("#status");
@@ -26,6 +29,7 @@ let lastSent = 0;
 let sending = false;
 let pendingPublish = null;
 let photoDataUrl = "";
+let cameraStream = null;
 
 function message(text, error = false) {
   status.textContent = text;
@@ -66,20 +70,78 @@ async function imageAsDataUrl(file) {
   return canvas.toDataURL("image/jpeg", 0.72);
 }
 
+function stopCamera() {
+  cameraStream?.getTracks().forEach((track) => track.stop());
+  cameraStream = null;
+  cameraPreview.srcObject = null;
+  cameraPreview.hidden = true;
+  capturePhoto.hidden = true;
+  cameraButton.textContent = photoDataUrl ? "Volver a sacar la foto" : "Sacar una foto";
+}
+
+cameraButton.addEventListener("click", async () => {
+  if (cameraStream) {
+    stopCamera();
+    return;
+  }
+  if (!navigator.mediaDevices?.getUserMedia) {
+    message("Este navegador no permite abrir la cámara. Elegí una foto de tu dispositivo.", true);
+    return;
+  }
+  try {
+    cameraStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "user" },
+      audio: false,
+    });
+    cameraPreview.srcObject = cameraStream;
+    cameraPreview.hidden = false;
+    photoPreview.hidden = true;
+    capturePhoto.hidden = false;
+    cameraButton.textContent = "Cancelar cámara";
+    await cameraPreview.play();
+  } catch {
+    stopCamera();
+    message("No pudimos abrir la cámara. Revisá el permiso del navegador o elegí una foto.", true);
+  }
+});
+
+capturePhoto.addEventListener("click", () => {
+  if (!cameraPreview.videoWidth || !cameraPreview.videoHeight) {
+    message("La cámara todavía se está iniciando. Probá de nuevo en un instante.", true);
+    return;
+  }
+  const scale = Math.min(1, 640 / Math.max(cameraPreview.videoWidth, cameraPreview.videoHeight));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(cameraPreview.videoWidth * scale));
+  canvas.height = Math.max(1, Math.round(cameraPreview.videoHeight * scale));
+  canvas.getContext("2d").drawImage(cameraPreview, 0, 0, canvas.width, canvas.height);
+  photoDataUrl = canvas.toDataURL("image/jpeg", 0.72);
+  photoPreview.src = photoDataUrl;
+  photoPreview.hidden = false;
+  stopCamera();
+  message("Foto lista. Se publicará junto con tu perfil.");
+});
+
 photoInput.addEventListener("change", async () => {
   const file = photoInput.files?.[0];
   if (!file) return;
   try {
+    stopCamera();
     photoDataUrl = await imageAsDataUrl(file);
     photoPreview.src = photoDataUrl;
     photoPreview.hidden = false;
+    cameraButton.textContent = "Volver a sacar la foto";
+    message("Foto lista. Se publicará junto con tu perfil.");
   } catch {
     message("No pudimos leer esa foto. Probá con otra imagen.", true);
   }
 });
 
+window.addEventListener("pagehide", stopCamera);
+
 registration.addEventListener("submit", async (event) => {
   event.preventDefault();
+  stopCamera();
   joinButton.disabled = true;
   message("Creando tu perfil…");
   try {
