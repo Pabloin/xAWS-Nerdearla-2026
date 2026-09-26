@@ -67,6 +67,12 @@ const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(
   "",
 );
 type LiveHero = { profileId: string; name: string; latitude: number; longitude: number; accuracy: number; updatedAt: string };
+const featuredHeroProfiles: BuilderProfile[] = [
+  { id: "matias-kreder", name: "Matias Kreder", role: "hero", title: "AWS Hero", city: "", community: "", superpower: "", askMeAbout: "", story: "", color: "#C8FF3D" },
+  { id: "rossana-suarez", name: "Rossana Suarez (Roxs)", role: "hero", title: "AWS Hero", city: "", community: "", superpower: "", askMeAbout: "", story: "", color: "#C8FF3D" },
+  { id: "ricardo-ceci", name: "Ricardo Ceci", role: "hero", title: "AWS Hero", city: "", community: "", superpower: "", askMeAbout: "", story: "", color: "#C8FF3D" },
+  { id: "damian-olguin", name: "Damian Olguin", role: "hero", title: "AWS Hero", city: "", community: "", superpower: "", askMeAbout: "", story: "", color: "#C8FF3D" },
+];
 function heroMapUrl(hero: LiveHero): string {
   const { latitude, longitude } = hero;
   const latitudeSpan = 0.0025;
@@ -93,7 +99,7 @@ function Avatar({
   profile: BuilderProfile;
   large?: boolean;
 }) {
-  const photoUrl = heroPhotoUrl(profile.id);
+  const photoUrl = heroPhotoUrl(profile.id) || (profile.id.startsWith("hero-") ? apiBaseUrl + "/profiles/" + profile.id + "/photo" : null);
   return (
     <span
       className={`avatar ${large ? "avatar-large" : ""} ${photoUrl ? "avatar-photo" : ""} ${photoUrl ? `avatar-${profile.id}` : ""}`}
@@ -138,6 +144,7 @@ function App() {
   const [profiles, setProfiles] = useState<BuilderProfile[]>(demoProfiles);
   const [liveHeroes, setLiveHeroes] = useState<LiveHero[]>([]);
   const [mapHeroId, setMapHeroId] = useState<string | null>(null);
+  const [communityOpen, setCommunityOpen] = useState(false);
   const mapHero = liveHeroes.find((hero) => hero.profileId === mapHeroId);
   const [encounters, setEncounters] = useState<Encounter[]>(() =>
     apiBaseUrl ? [] : readEncounters(),
@@ -251,13 +258,17 @@ function App() {
   }, [session, guest?.token]);
   useEffect(() => {
     if (!apiBaseUrl) return;
-    fetch(`${apiBaseUrl}/profiles`)
+    let active = true;
+    const refresh = () => fetch(apiBaseUrl + "/profiles")
       .then((r) => (r.ok ? r.json() : Promise.reject()))
       .then((data) => {
-        if (Array.isArray(data.profiles) && data.profiles.length)
+        if (active && Array.isArray(data.profiles) && data.profiles.length)
           setProfiles(data.profiles);
       })
       .catch(() => undefined);
+    void refresh();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { active = false; window.clearInterval(timer); };
   }, []);
   useEffect(() => {
     if (!apiBaseUrl) return;
@@ -730,103 +741,53 @@ function App() {
       )}
       {view === "discover" && (
         <main className="page discover-page">
-          <span className="eyebrow">{guest && !session ? `HOLA, ${guest.guest.name.toUpperCase()}` : "LA COMUNIDAD EN VIVO"}</span>
+          <span className="eyebrow">{guest && !session ? `HOLA, ${guest.guest.name.toUpperCase()}` : "NERDEARLA 2026"}</span>
           <h1>
             Explorá <em>el evento</em>
           </h1>
           <p className="page-subtitle">
-            Encontrá personas en el evento, escaneá sus badges y completá tu
-            pasaporte.
+            Conocé a los cuatro Heroes destacados y mirá quiénes comparten su
+            ubicación en vivo.
           </p>
-          <button
-            className="mission-card"
-            type="button"
-            onClick={() => go("passport")}
-          >
-            <span className="mission-icon">
-              <Trophy size={25} />
-            </span>
-            <span>
-              <small>MISIÓN ACTIVA</small>
-              <strong>{demoQuests[1].title}</strong>
-            </span>
-            <b>{questProgress(demoQuests[1], profiles, encounters)}/2</b>
-            <ChevronRight size={18} />
+          <section className="featured-heroes" aria-label="Heroes destacados">
+            <h2>Conocé a los Heroes</h2>
+            <p>Elegí a uno para ver su perfil.</p>
+            <div className="featured-hero-list">
+              {featuredHeroProfiles.map((featured) => {
+                const profile = profiles.find((item) => item.id === featured.id) || featured;
+                const photo = heroPhotoUrl(profile.id);
+                return (
+                  <button key={profile.id} className="featured-hero-card" type="button" onClick={() => setSelected(profile)}>
+                    {photo ? <img src={photo} alt="" loading="lazy" /> : <Avatar profile={profile} />}
+                    <span><strong>{profile.name}</strong><small>{profile.community || profile.title}</small></span>
+                    <b>Ver perfil <ChevronRight size={16} /></b>
+                  </button>
+                );
+              })}
+            </div>
+          </section>
+          <button className="community-live-toggle" type="button" onClick={() => setCommunityOpen((open) => !open)} aria-expanded={communityOpen}>
+            <Users size={19} /> Comunidad en vivo <span>{liveHeroes.length}</span><ChevronRight size={18} />
           </button>
-          <div
-            className="event-map"
-            aria-label="Mapa ilustrativo de personas para conocer"
-          >
-            <div className="map-grid" />
-            <span className="map-demo">MAPA ILUSTRATIVO</span>
-            <span className="map-zone zone-one">ESCENARIO</span>
-            <span className="map-zone zone-two">ZONA NETWORKING</span>
-            <span className="map-zone zone-three">EXPOSITORES</span>
-            <span className="map-pulse" />
-            {profiles.slice(0, 3).map((profile, i) => (
-              <button
-                key={profile.id}
-                className={`map-person map-person-${i}`}
-                type="button"
-                onClick={() => setSelected(profile)}
-              >
-                <Avatar profile={profile} />
-                <span>
-                  {profile.name.split(" ")[0]}
-                  <small>{roleLabels[profile.role]}</small>
-                </span>
-              </button>
-            ))}
-          </div>
-          {liveHeroes.length > 0 && <section className="live-heroes" aria-label="Héroes compartiendo ubicación">
-            <span className="eyebrow">HÉROES EN VIVO</span>
-            <h2>Encontralos en el evento</h2>
-            <p>Ubicación aproximada; puede variar dentro del edificio.</p>
-            {liveHeroes.map((hero) => <button key={hero.profileId} className="live-hero" type="button" onClick={() => setMapHeroId(hero.profileId)} aria-expanded={mapHeroId === hero.profileId}>
-              {heroPhotoUrl(hero.profileId)
-                ? <img className="live-hero-photo" src={heroPhotoUrl(hero.profileId)!} alt="" loading="lazy" />
-                : <span className="live-hero-pulse" aria-hidden="true" />}
-              <span><strong>{hero.name}</strong><small>Compartiendo ahora · precisión ±{Math.round(hero.accuracy)} m · Ver mapa</small></span>
-              <span aria-hidden="true">⌖</span>
-            </button>)}
+          {communityOpen && <section className="live-heroes" aria-label="Personas compartiendo ubicación">
+            <span className="eyebrow">COMPARTEN UBICACIÓN AHORA</span>
+            <h2>Comunidad en vivo</h2>
+            <p>Solo aparecen quienes activaron voluntariamente su ubicación. Puede variar dentro del edificio.</p>
+            {liveHeroes.length === 0 ? <p className="community-empty">Todavía no hay personas compartiendo su ubicación.</p> : liveHeroes.map((hero) => {
+              const profile = profiles.find((item) => item.id === hero.profileId);
+              const photo = heroPhotoUrl(hero.profileId) || (hero.profileId.startsWith("hero-") ? apiBaseUrl + "/profiles/" + hero.profileId + "/photo" : null);
+              return <button key={hero.profileId} className="live-hero" type="button" onClick={() => setMapHeroId(hero.profileId)} aria-expanded={mapHeroId === hero.profileId}>
+                {photo ? <img className="live-hero-photo" src={photo} alt="" loading="lazy" /> : <span className="live-hero-pulse" aria-hidden="true" />}
+                <span><strong>{hero.name}</strong><small>{profile?.community || profile?.title || "Hero"} · precisión ±{Math.round(hero.accuracy)} m · Ver mapa</small></span>
+                <span aria-hidden="true">⌖</span>
+              </button>;
+            })}
             {mapHero && <div className="live-hero-map">
               <div className="live-hero-map-header"><strong>Ubicación de {mapHero.name}</strong><button type="button" onClick={() => setMapHeroId(null)} aria-label="Cerrar mapa"><X size={18} /></button></div>
               <iframe title={`Mapa de ${mapHero.name}`} src={heroMapUrl(mapHero)} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" />
               <small>Mapa: © OpenStreetMap contributors · La posición puede variar dentro del edificio.</small>
             </div>}
           </section>}
-          <div className="nearby-card">
-            <Avatar profile={profiles[0]} />
-            <span>
-              <strong>
-                {profiles[0].name} · <em>{roleLabels[profiles[0].role]}</em>
-              </strong>
-              <small>{profiles[0].community}</small>
-              <span className="tag-list">
-                <i>{roleLabels[profiles[0].role]}</i>
-                <i>{profiles[0].community || "Comunidad"}</i>
-              </span>
-            </span>
-            <button type="button" onClick={() => setSelected(profiles[0])}>
-              Ver encuentro
-            </button>
-          </div>
-          <section className="below-map">
-            <h2>Personas por descubrir</h2>
-            <div className="people-row">
-              {profiles.slice(1).map((profile) => (
-                <button
-                  key={profile.id}
-                  type="button"
-                  onClick={() => setSelected(profile)}
-                >
-                  <Avatar profile={profile} />
-                  <strong>{profile.name}</strong>
-                  <small>{roleLabels[profile.role]}</small>
-                </button>
-              ))}
-            </div>
-          </section>
         </main>
       )}
       {view === "passport" && (

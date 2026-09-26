@@ -139,6 +139,36 @@ async function createHeroLink(event, profileId) {
   return json(event, 201, { profileId, url: `https://hero.comunid.app/#${profileId}.${secret}` });
 }
 
+async function registerHero(event) {
+  const input = parseBody(event);
+  const name = String(input.name || "").trim().replace(/\s+/g, " ");
+  const community = String(input.community || "");
+  const communities = new Set(["AWS User Group", "AWS Student Builder Groups", "AWS Community Builder"]);
+  if (name.length < 2 || name.length > 80 || /[\x00-\x1f\x7f]/.test(name)) {
+    return json(event, 422, { error: "hero_name_invalid" });
+  }
+  if (!communities.has(community)) return json(event, 422, { error: "hero_community_invalid" });
+  const profileId = `hero-${randomUUID()}`;
+  const secret = randomBytes(32).toString("base64url");
+  const timestamp = new Date().toISOString();
+  const profile = { id: profileId, name, role: "hero", title: community, city: "", community,
+    superpower: "", askMeAbout: "", story: "", color: "#C8FF3D", consent: true, faceConsent: false };
+  const photo = String(input.photoDataUrl || "");
+  let photoItem;
+  if (photo) {
+    const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(photo);
+    if (!match || Buffer.from(match[2], "base64").length > 180_000) return json(event, 422, { error: "hero_photo_invalid" });
+    photoItem = { pk: `PROFILE#${profileId}`, sk: "PHOTO", contentType: `image/${match[1]}`, imageBase64: match[2] };
+  }
+  await database.send(new PutCommand({ TableName: tableName,
+    Item: { pk: `EVENT#${defaultEventId}`, sk: `PROFILE#${profileId}`, entityType: "PROFILE", eventId: defaultEventId, ...profile, createdAt: timestamp, updatedAt: timestamp },
+    ConditionExpression: "attribute_not_exists(pk) AND attribute_not_exists(sk)" }));
+  if (photoItem) await database.send(new PutCommand({ TableName: tableName, Item: photoItem }));
+  await database.send(new PutCommand({ TableName: tableName, Item: { pk: `HERO#${profileId}`, sk: "ACCESS", eventId: defaultEventId,
+    tokenHash: createHash("sha256").update(secret).digest("hex"), updatedAt: timestamp } }));
+  return json(event, 201, { profileId, name, community, token: `${profileId}.${secret}` });
+}
+
 async function heroRoute(event, method, parts) {
   if (method === "GET" && parts[1] === "live" && parts.length === 2) {
     const profiles = await queryAll({ TableName: tableName,
@@ -551,6 +581,7 @@ export async function handler(event) {
 
   try {
     if (method === "GET" && parts[0] === "health") return json(event, 200, { service: "comunid-api", status: "ok", eventId: defaultEventId });
+    if (method === "POST" && parts[0] === "heroes" && parts[1] === "register" && parts.length === 2) return registerHero(event);
     if (parts[0] === "guests") return guestRoute(event, method, parts);
     if (parts[0] === "heroes") return heroRoute(event, method, parts);
     if (parts[0] === "admin") {
@@ -573,6 +604,11 @@ export async function handler(event) {
     }
     if (method === "GET" && parts[0] === "profiles" && !parts[1]) return listProfiles(event);
     if (method === "POST" && parts[0] === "profiles" && !parts[1]) return createProfile(event);
+    if (method === "GET" && parts[0] === "profiles" && parts[1] && parts[2] === "photo") {
+      const result = await database.send(new GetCommand({ TableName: tableName, Key: { pk: `PROFILE#${parts[1]}`, sk: "PHOTO" } }));
+      if (!result.Item?.imageBase64) return json(event, 404, { error: "photo_not_found" });
+      return { statusCode: 200, headers: { ...headers(event, result.Item.contentType), "cache-control": "public,max-age=3600" }, isBase64Encoded: true, body: result.Item.imageBase64 };
+    }
     if (method === "GET" && parts[0] === "profiles" && parts[1] && parts[2] === "qr") return profileQr(event, parts[1]);
     if (method === "GET" && parts[0] === "profiles" && parts[1]) return getProfile(event, parts[1]);
     if (method === "POST" && parts[0] === "encounters") return createEncounter(event);
