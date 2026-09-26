@@ -67,6 +67,17 @@ const apiBaseUrl = String(import.meta.env.VITE_API_BASE_URL ?? "").replace(
   "",
 );
 type LiveHero = { profileId: string; name: string; latitude: number; longitude: number; accuracy: number; updatedAt: string };
+function heroMapUrl(hero: LiveHero): string {
+  const { latitude, longitude } = hero;
+  const latitudeSpan = 0.0025;
+  const longitudeSpan = latitudeSpan / Math.max(Math.cos(latitude * Math.PI / 180), 0.2);
+  const query = new URLSearchParams({
+    bbox: [longitude - longitudeSpan, latitude - latitudeSpan, longitude + longitudeSpan, latitude + latitudeSpan].join(","),
+    layer: "mapnik",
+    marker: `${latitude},${longitude}`,
+  });
+  return `https://www.openstreetmap.org/export/embed.html?${query}`;
+}
 function readEncounters(): Encounter[] {
   try {
     const value = JSON.parse(localStorage.getItem(encounterKey) ?? "[]");
@@ -126,6 +137,8 @@ function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [profiles, setProfiles] = useState<BuilderProfile[]>(demoProfiles);
   const [liveHeroes, setLiveHeroes] = useState<LiveHero[]>([]);
+  const [mapHeroId, setMapHeroId] = useState<string | null>(null);
+  const mapHero = liveHeroes.find((hero) => hero.profileId === mapHeroId);
   const [encounters, setEncounters] = useState<Encounter[]>(() =>
     apiBaseUrl ? [] : readEncounters(),
   );
@@ -769,13 +782,18 @@ function App() {
             <span className="eyebrow">HÉROES EN VIVO</span>
             <h2>Encontralos en el evento</h2>
             <p>Ubicación aproximada; puede variar dentro del edificio.</p>
-            {liveHeroes.map((hero) => <a key={hero.profileId} className="live-hero" href={`https://www.openstreetmap.org/?mlat=${hero.latitude}&mlon=${hero.longitude}#map=18/${hero.latitude}/${hero.longitude}`} target="_blank" rel="noopener noreferrer">
+            {liveHeroes.map((hero) => <button key={hero.profileId} className="live-hero" type="button" onClick={() => setMapHeroId(hero.profileId)} aria-expanded={mapHeroId === hero.profileId}>
               {heroPhotoUrl(hero.profileId)
                 ? <img className="live-hero-photo" src={heroPhotoUrl(hero.profileId)!} alt="" loading="lazy" />
                 : <span className="live-hero-pulse" aria-hidden="true" />}
-              <span><strong>{hero.name}</strong><small>Compartiendo ahora · precisión ±{Math.round(hero.accuracy)} m</small></span>
-              <span aria-hidden="true">↗</span>
-            </a>)}
+              <span><strong>{hero.name}</strong><small>Compartiendo ahora · precisión ±{Math.round(hero.accuracy)} m · Ver mapa</small></span>
+              <span aria-hidden="true">⌖</span>
+            </button>)}
+            {mapHero && <div className="live-hero-map">
+              <div className="live-hero-map-header"><strong>Ubicación de {mapHero.name}</strong><button type="button" onClick={() => setMapHeroId(null)} aria-label="Cerrar mapa"><X size={18} /></button></div>
+              <iframe title={`Mapa de ${mapHero.name}`} src={heroMapUrl(mapHero)} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" />
+              <small>Mapa: © OpenStreetMap contributors · La posición puede variar dentro del edificio.</small>
+            </div>}
           </section>}
           <div className="nearby-card">
             <Avatar profile={profiles[0]} />
