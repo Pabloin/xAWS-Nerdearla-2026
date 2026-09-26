@@ -42,8 +42,8 @@ function renderPage(language) {
             <figure class="hero-passport" aria-label="${copy.passportDescription}">
               <div class="passport-ui">
                 <div class="passport-ui-head"><span class="passport-ui-mark">✦</span><div><small>${copy.passportBrand}</small><strong>${copy.passportHeading}</strong></div></div>
-                <div class="passport-ui-page"><small>${copy.passportEvent}</small><strong>${copy.passportProgress}</strong><div class="passport-progress"><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i></div></div>
-                <div class="passport-stamps"><div class="passport-stamp earned"><span>✦</span><small>${copy.passportHero}</small></div><div class="passport-stamp earned blue"><span>⌘</span><small>${copy.passportBuilder}</small></div><div class="passport-stamp earned pink"><span>✳</span><small>${copy.passportCommunity}</small></div><div class="passport-stamp locked"><span>?</span><small>${copy.passportStudent}</small></div><div class="passport-stamp locked"><span>?</span><small>${copy.passportConnector}</small></div><div class="passport-stamp locked"><span>?</span><small>${copy.passportLegend}</small></div></div>
+                <div class="passport-ui-page"><small>${copy.passportEvent}</small><strong>${copy.passportProgress}</strong><div class="passport-progress"><i></i><i></i><i></i><i></i></div></div>
+                <div class="passport-stamps"><div class="passport-stamp earned"><span>✦</span><small>${copy.passportHero}</small></div><div class="passport-stamp earned blue"><span>⌘</span><small>${copy.passportBuilder}</small></div><div class="passport-stamp earned pink"><span>✳</span><small>${copy.passportCommunity}</small></div><div class="passport-stamp locked"><span>?</span><small>${copy.passportStudent}</small></div></div>
                 <div class="passport-prize"><span>✧</span><div><small>${copy.nextPrize}</small><strong>${copy.nextPrizeCount}</strong></div><b>↗</b></div>
               </div>
               <figcaption>${copy.passportCaption}</figcaption>
