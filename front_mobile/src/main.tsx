@@ -22,6 +22,7 @@ import {
 import QRCode from "qrcode";
 import jsQR from "jsqr";
 import { demoProfiles, demoQuests } from "./demo-data";
+import { heroPhotoUrl } from "./heroPhotos";
 import { AuthScreen } from "./AuthScreen";
 import {
   accessToken,
@@ -81,12 +82,13 @@ function Avatar({
   profile: BuilderProfile;
   large?: boolean;
 }) {
+  const photoUrl = heroPhotoUrl(profile.id);
   return (
     <span
-      className={`avatar ${large ? "avatar-large" : ""}`}
+      className={`avatar ${large ? "avatar-large" : ""} ${photoUrl ? "avatar-photo" : ""} ${photoUrl ? `avatar-${profile.id}` : ""}`}
       style={{ "--accent": profile.color } as React.CSSProperties}
     >
-      {profile.name
+      {photoUrl ? <img src={photoUrl} alt="" loading="lazy" /> : profile.name
         .split(/\s+/)
         .slice(0, 2)
         .map((part) => part[0])
@@ -768,7 +770,9 @@ function App() {
             <h2>Encontralos en el evento</h2>
             <p>Ubicación aproximada; puede variar dentro del edificio.</p>
             {liveHeroes.map((hero) => <a key={hero.profileId} className="live-hero" href={`https://www.openstreetmap.org/?mlat=${hero.latitude}&mlon=${hero.longitude}#map=18/${hero.latitude}/${hero.longitude}`} target="_blank" rel="noopener noreferrer">
-              <span className="live-hero-pulse" aria-hidden="true" />
+              {heroPhotoUrl(hero.profileId)
+                ? <img className="live-hero-photo" src={heroPhotoUrl(hero.profileId)!} alt="" loading="lazy" />
+                : <span className="live-hero-pulse" aria-hidden="true" />}
               <span><strong>{hero.name}</strong><small>Compartiendo ahora · precisión ±{Math.round(hero.accuracy)} m</small></span>
               <span aria-hidden="true">↗</span>
             </a>)}
@@ -781,9 +785,8 @@ function App() {
               </strong>
               <small>{profiles[0].community}</small>
               <span className="tag-list">
-                <i>Builder</i>
-                <i>IA</i>
-                <i>Comunidad</i>
+                <i>{roleLabels[profiles[0].role]}</i>
+                <i>{profiles[0].community || "Comunidad"}</i>
               </span>
             </span>
             <button type="button" onClick={() => setSelected(profiles[0])}>
@@ -1329,18 +1332,18 @@ function ProfileDialog({
             <p>{profile.title}</p>
           </span>
         </div>
-        <p className="location-line">
-          <MapPin size={16} /> {profile.city} · {profile.community}
-        </p>
-        <p className="profile-story">{profile.story}</p>
-        <div className="detail-block">
+        {(profile.city || profile.community) && <p className="location-line">
+          <MapPin size={16} /> {[profile.city, profile.community].filter(Boolean).join(" · ")}
+        </p>}
+        {profile.story && <p className="profile-story">{profile.story}</p>}
+        {profile.superpower && <div className="detail-block">
           <Sparkles size={21} />
           <span>
             <small>SUPERPODER EN LA COMUNIDAD</small>
             <strong>{profile.superpower}</strong>
           </span>
-        </div>
-        <div className="detail-block">
+        </div>}
+        {profile.askMeAbout && <div className="detail-block">
           <Users size={21} />
           <span>
             <small>PARA EMPEZAR UNA CHARLA</small>
@@ -1348,7 +1351,7 @@ function ProfileDialog({
               Preguntame sobre {profile.askMeAbout.toLowerCase()}.
             </strong>
           </span>
-        </div>
+        </div>}
         {collected ? (
           <div className="qr-share">
             {qr && <img src={qr} alt={`QR de ${profile.name}`} />}

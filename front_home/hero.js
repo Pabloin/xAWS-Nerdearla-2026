@@ -31,6 +31,8 @@ function showSelectedHero() {
   const id = select.value;
   qr.hidden = !id;
   if (id) {
+    document.querySelector("#hero-photo").src = `/app/heros/hero-${id}.png`;
+    document.querySelector("#hero-photo").alt = `Foto de ${heroes.get(id)}`;
     document.querySelector("#qr-image").src = `${apiBase}/profiles/${id}/qr`;
     document.querySelector("#qr-image").alt = `QR de ${heroes.get(id)}`;
     document.querySelector("#qr-name").textContent = heroes.get(id);
