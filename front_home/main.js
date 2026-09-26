@@ -37,8 +37,8 @@ function renderPage(language) {
             <p class="hero-signoff">${copy.heroSignoff}</p>
           </div>
           <div class="hero-stage" aria-label="${copy.passportDescription}">
-            <figure class="hero-photo hero-photo-left"><img src="/community/encuentro-belu-nelly.jpg" alt="${copy.heroImageOne}" /></figure>
-            <figure class="hero-photo hero-photo-right"><img src="/community/encuentro-jeff.jpg" alt="${copy.heroImageTwo}" /></figure>
+            <figure class="hero-photo hero-photo-left"><img src="/experience/04-banderas-latam.jpg" alt="${copy.heroImageOne}" /></figure>
+            <figure class="hero-photo hero-photo-right"><img src="/experience/hero-richard-2.jpg" alt="${copy.heroImageTwo}" /></figure>
             <figure class="hero-passport" aria-label="${copy.passportDescription}">
               <div class="passport-ui">
                 <div class="passport-ui-head"><span class="passport-ui-mark">✦</span><div><small>${copy.passportBrand}</small><strong>${copy.passportHeading}</strong></div></div>

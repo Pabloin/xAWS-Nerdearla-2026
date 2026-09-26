@@ -18,7 +18,7 @@
 .hero h1{font-size:clamp(3.35rem,5.2vw,5.15rem)}
 .hero-signoff{margin-top:22px;color:#c1a2eb;font-size:.84rem;font-weight:700}
 .hero-stage{height:570px}
-.hero-passport{position:absolute;z-index:2;left:30%;top:0;width:45%;height:100%;margin:0;filter:drop-shadow(0 26px 34px #0009);transform:rotate(-2deg)}
+.hero-passport{position:absolute;z-index:2;left:33%;top:0;width:45%;height:100%;margin:0;filter:drop-shadow(0 26px 34px #0009);transform:rotate(3deg)}
 .hero-passport img{display:block;width:100%;height:94%;object-fit:contain;object-position:center top;border:3px solid #d3adff;border-radius:24px;background:#171629}
 .passport-ui{height:94%;padding:20px 16px;background:linear-gradient(155deg,#202036,#121422);border:3px solid #b786ff;border-radius:24px;box-shadow:inset 0 0 0 1px #ffffff20;overflow:hidden}
 .passport-ui-head{display:flex;align-items:center;gap:10px;color:#fff}.passport-ui-head small,.passport-ui-page small,.passport-prize small{display:block;color:#c5a6ed;font-size:.49rem;font-weight:800;letter-spacing:.12em}.passport-ui-head strong{display:block;margin-top:3px;font:800 1.08rem/1.1 Manrope,sans-serif;letter-spacing:-.05em}.passport-ui-mark{width:32px;height:34px;display:grid;place-items:center;flex:none;background:#9b5ced;clip-path:polygon(50% 0,93% 25%,93% 75%,50% 100%,7% 75%,7% 25%);color:#fff;font-size:1rem}
@@ -28,6 +28,7 @@
 .hero-passport figcaption{margin-top:8px;text-align:center;color:#cbb0ea;font-size:.52rem;font-weight:800;letter-spacing:.14em}
 .hero-stage .hero-photo-left{z-index:1;width:43%;height:42%;left:0;top:9%;transform:rotate(-10deg)}
 .hero-stage .hero-photo-right{z-index:1;width:43%;height:42%;right:-1%;bottom:6%;transform:rotate(9deg)}
+.hero-stage .hero-photo-right img{object-position:68% center}
 .hero-stage .connection-card{z-index:3;top:67%;left:0;width:270px;min-height:95px;padding:14px;transform:rotate(-5deg)}
 .hero-stage .connection-card strong{font-size:.88rem}
 .hero-stage .connection-card small{font-size:.48rem}
