@@ -31,6 +31,7 @@ import {
   authEnabled,
   currentSession,
   logout,
+  updateAttendeeProfile,
   type AttendeeSession,
 } from "./auth";
 import {
@@ -42,6 +43,7 @@ import {
   removeGuestContact,
   saveGuestSession,
   setGuestContact,
+  updateGuestProfile,
   type GuestSession,
 } from "./guest";
 import {
@@ -137,6 +139,11 @@ function App() {
   const [session, setSession] = useState<AttendeeSession | null>(null);
   const [guest, setGuest] = useState<GuestSession | null>(readGuestSession);
   const [guestName, setGuestName] = useState("");
+  const [guestEmail, setGuestEmail] = useState("");
+  const [profileName, setProfileName] = useState("");
+  const [profileEmail, setProfileEmail] = useState("");
+  const [profileBusy, setProfileBusy] = useState(false);
+  const [profileMessage, setProfileMessage] = useState("");
   const [guestBusy, setGuestBusy] = useState(false);
   const [guestError, setGuestError] = useState("");
   const [contactEmail, setContactEmail] = useState("");
@@ -189,6 +196,10 @@ function App() {
   useEffect(() => {
     setContactEmail(guest?.guest.email ?? "");
   }, [guest?.guest.email]);
+  useEffect(() => {
+    setProfileName(session?.name || guest?.guest.name || "");
+    setProfileEmail(session?.email || guest?.guest.email || "");
+  }, [session, guest?.guest.name, guest?.guest.email]);
   useEffect(() => {
     if (!apiBaseUrl)
       localStorage.setItem(encounterKey, JSON.stringify(encounters));
@@ -337,7 +348,7 @@ function App() {
     setGuestError("");
     try {
       if (authEnabled && !apiBaseUrl) throw new Error("La API no está configurada.");
-      const created = await createGuest(guestName, apiBaseUrl);
+      const created = await createGuest(guestName, guestEmail, apiBaseUrl);
       saveGuestSession(created);
       setGuest(created);
       setSession(null);
@@ -355,6 +366,29 @@ function App() {
     } finally {
       setGuestBusy(false);
     }
+  }
+  async function saveProfile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!guest && !session) return;
+    setProfileBusy(true);
+    setProfileMessage("");
+    try {
+      if (guest) {
+        const updated = await updateGuestProfile(guest, apiBaseUrl, profileName, profileEmail);
+        saveGuestSession(updated);
+        setGuest(updated);
+        setProfileName(updated.guest.name);
+        setProfileEmail(updated.guest.email || "");
+        setProfileMessage("Perfil actualizado.");
+      } else {
+        await updateAttendeeProfile(profileName, profileEmail);
+        const current = await currentSession();
+        if (current) setSession(current);
+        setProfileMessage("Nombre actualizado. Si cambiaste el correo, Cognito puede pedirte que lo confirmes antes de usarlo para iniciar sesión.");
+      }
+    } catch (error) {
+      setProfileMessage(error instanceof Error ? error.message : "No pudimos guardar los cambios.");
+    } finally { setProfileBusy(false); }
   }
   async function authenticated() {
     const current = await currentSession();
@@ -533,6 +567,7 @@ function App() {
     );
   return (
     <div className="app-shell">
+      {inApp && view !== "profile" && <button className="profile-shortcut" type="button" onClick={() => go("profile")} aria-label="Abrir mi perfil"><UserRound size={19} /><span>Mi perfil</span></button>}
       {view === "welcome" && (
         <main className="intro-screen">
           <div className="intro-top">
@@ -636,8 +671,13 @@ function App() {
                 disabled={guestBusy}
               />
             </div>
+            <label htmlFor="guest-email">Tu correo electrónico</label>
+            <div className="input-wrap">
+              <Mail size={20} />
+              <input id="guest-email" type="email" value={guestEmail} onChange={(event) => setGuestEmail(event.target.value)} placeholder="tu@email.com" autoComplete="email" required disabled={guestBusy} />
+            </div>
             <p className="guest-entry-note">
-              Guardamos tu nombre y encuentros para el pasaporte. Tu acceso queda en este navegador.
+              Revisá que el correo esté bien escrito: lo usaremos para compartirte el premio cuando completes el pasaporte. Podés editarlo después desde Mi perfil.
             </p>
             {guestError && <p className="auth-error" role="alert">{guestError}</p>}
             <button className="primary-button" type="submit" disabled={guestBusy}>
@@ -822,13 +862,15 @@ function App() {
         <main className="page account-page">
           <span className="eyebrow">MI CUENTA</span>
           <h1>Mi perfil</h1>
-          <p className="page-subtitle">Tus datos para identificar tu pasaporte y contactarte por los premios.</p>
-          <section className="account-card" aria-label="Datos de tu perfil">
+          <p className="page-subtitle">Revisá tus datos. Usaremos tu correo para compartirte un premio cuando completes el pasaporte.</p>
+          <form className="account-card" aria-label="Datos de tu perfil" onSubmit={(event) => void saveProfile(event)}>
             <span className="account-avatar"><UserRound size={28} /></span>
-            <div className="account-field"><small>NOMBRE</small><strong>{session?.name || session?.email.split("@")[0] || guest?.guest.name || "Participante"}</strong></div>
-            <div className="account-field"><small>CORREO PARA CONTACTO</small><strong>{session?.email || guest?.guest.email || "Sin correo registrado"}</strong></div>
-            {!session && !guest?.guest.email && <p>No hay un correo asociado a este pasaporte.</p>}
-          </section>
+            <label htmlFor="profile-name">Nombre</label><input id="profile-name" className="profile-edit-input" value={profileName} onChange={(event) => setProfileName(event.target.value)} minLength={2} maxLength={60} required disabled={profileBusy} />
+            <label htmlFor="profile-email">Correo electrónico</label><input id="profile-email" className="profile-edit-input" type="email" value={profileEmail} onChange={(event) => setProfileEmail(event.target.value)} maxLength={254} required disabled={profileBusy} />
+            <p>Podés corregir estos datos en cualquier momento. El correo sirve para enviarte el premio al completar el pasaporte.</p>
+            <button className="primary-button" type="submit" disabled={profileBusy}>{profileBusy ? "Guardando…" : "Guardar cambios"}</button>
+            {profileMessage && <p role="status">{profileMessage}</p>}
+          </form>
         </main>
       )}
       {view === "passport" && (
@@ -926,7 +968,7 @@ function App() {
             <section className="guest-contact-card" aria-labelledby="guest-contact-title">
               <span className="eyebrow">SEGUÍ EN CONTACTO</span>
               <h2 id="guest-contact-title">La comunidad sigue después del evento.</h2>
-              <p>Si querés recibir novedades, dejá tu correo. Es opcional: tu premio y tu pasaporte no dependen de eso.</p>
+              <p>Dejanos un correo correcto para poder compartirte el premio que desbloqueaste al completar el pasaporte. Podés corregirlo en Mi perfil.</p>
               {guest.guest.contactConsent && guest.guest.email ? (
                 <div className="guest-contact-saved">
                   <span><Check size={18} /> {guest.guest.email}</span>
@@ -956,7 +998,7 @@ function App() {
                       required
                       disabled={contactBusy}
                     />
-                    Quiero recibir novedades de la comunidad por correo.
+                    Autorizo que nos contacten por correo para compartir mi premio.
                   </label>
                   <button className="primary-button" type="submit" disabled={contactBusy || !contactConsent}>
                     {contactBusy ? "Guardando…" : "Quiero seguir en contacto"}
@@ -1029,7 +1071,7 @@ function App() {
             {message || "Escaneá el QR del badge para continuar"}
           </p>
           <div className="camera-controls">
-            {!authEnabled ? (
+            {!apiBaseUrl ? (
               <button
                 className="round-button"
                 type="button"
@@ -1059,7 +1101,7 @@ function App() {
               sumar el encuentro
             </span>
           </div>
-          {!authEnabled && <div className="demo-badges" id="demo-badges">
+          {!apiBaseUrl && <div className="demo-badges" id="demo-badges">
             <small>BADGES DE PRUEBA</small>
             {profiles.map((profile) => (
               <button

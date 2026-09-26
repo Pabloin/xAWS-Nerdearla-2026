@@ -47,7 +47,7 @@ async function guestRequest<T>(
   return response.json() as Promise<T>;
 }
 
-export async function createGuest(name: string, apiBaseUrl: string): Promise<GuestSession> {
+export async function createGuest(name: string, email: string, apiBaseUrl: string): Promise<GuestSession> {
   const normalized = name.trim().replace(/\s+/g, " ");
   if (normalized.length < 2 || normalized.length > 60) {
     throw new Error("Ingresá un nombre de 2 a 60 caracteres.");
@@ -57,7 +57,7 @@ export async function createGuest(name: string, apiBaseUrl: string): Promise<Gue
       guest: {
         id: crypto.randomUUID(),
         name: normalized,
-        email: null,
+        email: email.trim() || null,
         contactConsent: false,
         eventId: "nerdearla-2026",
       },
@@ -66,8 +66,18 @@ export async function createGuest(name: string, apiBaseUrl: string): Promise<Gue
   }
   return guestRequest<GuestSession>(apiBaseUrl, "/guests", {
     method: "POST",
-    body: JSON.stringify({ name: normalized }),
+    body: JSON.stringify({ name: normalized, email: email.trim() || null }),
   });
+}
+
+export async function updateGuestProfile(session: GuestSession, apiBaseUrl: string, name: string, email: string): Promise<GuestSession> {
+  const normalized = name.trim().replace(/\s+/g, " ");
+  if (normalized.length < 2 || normalized.length > 60) throw new Error("Ingresá un nombre de 2 a 60 caracteres.");
+  if (!apiBaseUrl) return { ...session, guest: { ...session.guest, name: normalized, email: email.trim() || null } };
+  const result = await guestRequest<{ guest: GuestProfile }>(apiBaseUrl, "/guests/me/profile", {
+    method: "PUT", body: JSON.stringify({ name: normalized, email: email.trim() || null }),
+  }, session.token);
+  return { ...session, guest: result.guest };
 }
 
 export async function refreshGuest(session: GuestSession, apiBaseUrl: string): Promise<GuestSession> {

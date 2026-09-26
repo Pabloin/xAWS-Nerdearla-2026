@@ -62,7 +62,7 @@ function guestPublic(item) {
   return {
     id: item.guestId,
     name: item.name,
-    email: item.contactConsent === true ? item.email : null,
+    email: item.email || null,
     contactConsent: item.contactConsent === true,
     eventId: item.eventId
   };
@@ -85,15 +85,19 @@ async function guestFromRequest(event) {
 
 async function createGuest(event) {
   const name = String(parseBody(event)?.name || "").trim().replace(/\s+/g, " ");
+  const email = String(parseBody(event)?.email || "").trim().toLowerCase();
   if (name.length < 2 || name.length > 60 || /[\x00-\x1f\x7f]/.test(name)) {
     return json(event, 422, { error: "guest_name_invalid" });
+  }
+  if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) {
+    return json(event, 422, { error: "guest_email_invalid" });
   }
   const guestId = randomUUID();
   const secret = randomBytes(32).toString("base64url");
   const tokenHash = createHash("sha256").update(secret).digest("hex");
   const item = {
     pk: `GUEST#${guestId}`, sk: "PROFILE", entityType: "GUEST", guestId,
-    eventId: defaultEventId, name, tokenHash, contactConsent: false,
+    eventId: defaultEventId, name, ...(email ? { email } : {}), tokenHash, contactConsent: false,
     createdAt: new Date().toISOString()
   };
   await database.send(new PutCommand({
@@ -212,6 +216,21 @@ async function communityRoute(event, method, parts) {
   if (!profile) return json(event, 401, { error: "community_authorization_required" });
   if (method === "GET" && parts[1] === "me" && parts.length === 2) {
     return json(event, 200, { profileId: profile.id, name: profile.name, role: profile.role, community: profile.community });
+  }
+  if (method === "PUT" && parts[1] === "me" && parts[2] === "profile" && parts.length === 3) {
+    const input = parseBody(event);
+    const name = String(input?.name || "").trim().replace(/\s+/g, " ");
+    const email = String(input?.email || "").trim().toLowerCase();
+    if (name.length < 2 || name.length > 60 || /[\x00-\x1f\x7f]/.test(name)) return json(event, 422, { error: "guest_name_invalid" });
+    if (email.length > 254 || (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))) return json(event, 422, { error: "guest_email_invalid" });
+    const result = await database.send(new UpdateCommand({
+      TableName: tableName, Key: { pk: guest.pk, sk: guest.sk },
+      UpdateExpression: "SET #name = :name, updatedAt = :updatedAt" + (email ? ", email = :email" : " REMOVE email"),
+      ExpressionAttributeNames: { "#name": "name" },
+      ExpressionAttributeValues: { ":name": name, ":updatedAt": new Date().toISOString(), ...(email ? { ":email": email } : {}) },
+      ConditionExpression: "attribute_exists(pk) AND attribute_exists(sk)", ReturnValues: "ALL_NEW"
+    }));
+    return json(event, 200, { guest: guestPublic(result.Attributes) });
   }
   if (parts[1] === "me" && parts[2] === "location" && parts.length === 3) {
     if (method === "DELETE") {

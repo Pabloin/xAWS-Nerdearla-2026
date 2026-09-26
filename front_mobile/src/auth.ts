@@ -10,11 +10,13 @@ import {
   signIn,
   signOut,
   signUp,
+  updateUserAttributes,
 } from "aws-amplify/auth";
 
 const userPoolId = String(import.meta.env.VITE_COGNITO_USER_POOL_ID || "");
 const clientId = String(import.meta.env.VITE_COGNITO_CLIENT_ID || "");
-export const authEnabled = Boolean(userPoolId && clientId);
+// Cognito stays provisioned, but attendee login and registration are paused in the frontend.
+export const authEnabled = false;
 
 if (authEnabled) {
   Amplify.configure({
@@ -113,6 +115,10 @@ export async function completePasswordReset(
 
 export async function logout(): Promise<void> {
   await signOut();
+}
+
+export async function updateAttendeeProfile(name: string, email: string): Promise<void> {
+  await updateUserAttributes({ userAttributes: { name: name.trim(), email: email.trim() } });
 }
 
 export function authErrorMessage(error: unknown): string {

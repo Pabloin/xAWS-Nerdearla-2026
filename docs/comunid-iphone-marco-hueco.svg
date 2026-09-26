@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1536" viewBox="0 0 1024 1536">
+  <defs>
+    <linearGradient id="titanium" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#15171b"/>
+      <stop offset="0.08" stop-color="#34383e"/>
+      <stop offset="0.18" stop-color="#090a0c"/>
+      <stop offset="0.82" stop-color="#070809"/>
+      <stop offset="0.94" stop-color="#3a3d43"/>
+      <stop offset="1" stop-color="#111216"/>
+    </linearGradient>
+    <linearGradient id="glassEdge" x1="0" y1="0" x2="0.9" y2="1">
+      <stop offset="0" stop-color="#c2c7d0" stop-opacity=".72"/>
+      <stop offset=".18" stop-color="#555b65" stop-opacity=".48"/>
+      <stop offset=".52" stop-color="#101114" stop-opacity=".12"/>
+      <stop offset=".86" stop-color="#777d87" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#dce0e6" stop-opacity=".7"/>
+    </linearGradient>
+    <linearGradient id="buttonMetal" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#0a0b0d"/>
+      <stop offset=".42" stop-color="#727780"/>
+      <stop offset=".7" stop-color="#30343a"/>
+      <stop offset="1" stop-color="#090a0c"/>
+    </linearGradient>
+    <filter id="shadow" x="-20%" y="-10%" width="140%" height="125%">
+      <feGaussianBlur stdDeviation="24"/>
+    </filter>
+    <mask id="screenCutout" maskUnits="userSpaceOnUse" x="0" y="0" width="1024" height="1536">
+      <rect width="1024" height="1536" fill="black"/>
+      <rect x="176" y="38" width="672" height="1460" rx="112" fill="white"/>
+      <rect x="212" y="158" width="600" height="1230" rx="66" fill="black"/>
+    </mask>
+  </defs>
+
+  <!-- Titanium body with an actual transparent opening for the screen. -->
+  <rect x="176" y="38" width="672" height="1460" rx="112" fill="url(#titanium)" mask="url(#screenCutout)"/>
+  <rect x="177.5" y="39.5" width="669" height="1457" rx="110" fill="none" stroke="#7f858e" stroke-opacity=".86" stroke-width="3"/>
+  <rect x="184" y="46" width="656" height="1444" rx="104" fill="none" stroke="url(#glassEdge)" stroke-width="3"/>
+  <rect x="194" y="56" width="636" height="1424" rx="96" fill="none" stroke="#090a0c" stroke-width="5"/>
+
+  <!-- Empty screen window: transparent so a slide image underneath remains untouched. -->
+  <rect x="212" y="158" width="600" height="1230" rx="66" fill="none" stroke="#050608" stroke-width="9"/>
+  <rect x="219" y="165" width="586" height="1216" rx="59" fill="none" stroke="#747b85" stroke-opacity=".76" stroke-width="2"/>
+  <path d="M244 167 Q262 165 281 165 H757" fill="none" stroke="#dfe3e9" stroke-opacity=".21" stroke-width="2"/>
+
+  <!-- Camera island is in the bezel above the open screen, never overlaid on the image. -->
+  <rect x="432" y="72" width="160" height="43" rx="22" fill="#030405" stroke="#3c4149" stroke-width="2"/>
+  <circle cx="558" cy="93.5" r="8" fill="#11151c" stroke="#202a3b" stroke-width="2"/>
+  <circle cx="558" cy="93.5" r="3" fill="#345280"/>
+
+  <!-- Side controls. -->
+  <rect x="163" y="294" width="14" height="74" rx="7" fill="url(#buttonMetal)" stroke="#8a9099" stroke-opacity=".65"/>
+  <rect x="163" y="408" width="14" height="150" rx="7" fill="url(#buttonMetal)" stroke="#8a9099" stroke-opacity=".65"/>
+  <rect x="163" y="581" width="14" height="150" rx="7" fill="url(#buttonMetal)" stroke="#8a9099" stroke-opacity=".65"/>
+  <rect x="847" y="466" width="14" height="190" rx="7" fill="url(#buttonMetal)" stroke="#8a9099" stroke-opacity=".65"/>
+</svg>
