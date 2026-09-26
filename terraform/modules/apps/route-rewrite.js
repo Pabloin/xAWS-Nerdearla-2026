@@ -6,6 +6,7 @@ function handler(event) {
   var appDomain = "${app_domain}";
   var adminDomain = "${admin_domain}";
   var heroDomain = "${hero_domain}";
+  var somosDomain = "${somos_domain}";
   var wwwDomain = "${www_domain}";
 
   if (wwwDomain && host === wwwDomain) {
@@ -18,6 +19,11 @@ function handler(event) {
 
   if (heroDomain && host === heroDomain) {
     if (uri.indexOf("/assets/") !== 0 && uri.indexOf("/brand/") !== 0 && uri.indexOf("/app/heros/") !== 0) request.uri = "/hero.html";
+    return request;
+  }
+
+  if (somosDomain && host === somosDomain) {
+    if (uri.indexOf("/assets/") !== 0 && uri.indexOf("/brand/") !== 0 && uri.indexOf("/app/heros/") !== 0) request.uri = "/somos.html";
     return request;
   }
 

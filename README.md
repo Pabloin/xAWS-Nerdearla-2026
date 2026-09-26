@@ -201,22 +201,23 @@ is kept in the browser, not stored by the API. Rekognition stores face
 vectors; DynamoDB stores profile and face IDs. Removing a face or withdrawing
 facial consent deletes its vector from the collection.
 
-## Hero location sharing
+## Hero and community location sharing
 
-The hero page offers Matias Kreder, Rossana Suarez (Roxs), Ricardo Ceci, and
-Damian Olguin in a selector. Selecting a hero shows their QR, which points to
-their passport profile in the mobile app. The four profiles must be present in
-the event data for scans to count. To let one of them share location, select
-their profile in the organizer studio and choose **Crear enlace privado**. Send each one only their
-own `https://hero.comunid.app/#...` link. Issuing a new link revokes the old
-one and clears its current location. The link is a bearer credential; keep it
-private. It is removed from the browser address bar and held only in that tab.
+`hero.comunid.app` is reserved for the four pre-registered Heroes: Matias
+Kreder, Rossana Suarez, Ricardo Ceci, and Damian Olguin. Selecting a Hero
+shows their passport QR. Organizers issue each person a private link from the
+studio; existing `https://hero.comunid.app/#...` links remain supported.
 
-On the hero page, the person explicitly starts location sharing and can stop
-it at any time. The mobile app polls `GET /heroes/live` and shows only updates
-from the last two minutes. No location history is written. Browser location
-updates may stop when the phone locks or the page goes to the background; the
-public location then disappears automatically.
+`somos.comunid.app` is the separate, open registration page. Attendees enter
+their name, choose a participant role and AWS community, and may upload a photo.
+They opt in to appearing in the event directory and can separately start or
+stop location sharing. New registrations use the community profile role they
+selected; they are not Heroes.
+
+The mobile app's **Comunidad en vivo** list shows any consented participant who
+is currently sharing a location. `GET /community/live` returns only locations
+updated in the last two minutes. No location history is written; a location
+disappears automatically after updates stop.
 
 ## Product direction
 

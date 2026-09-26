@@ -60,6 +60,7 @@ resource "aws_cloudfront_function" "section_routes" {
     app_domain    = lookup(var.additional_domains, "app", "")
     admin_domain  = lookup(var.additional_domains, "admin", "")
     hero_domain   = lookup(var.additional_domains, "hero", "")
+    somos_domain  = lookup(var.additional_domains, "somos", "")
     www_domain    = lookup(var.additional_domains, "www", "")
     root_domain   = var.domain_name
   })

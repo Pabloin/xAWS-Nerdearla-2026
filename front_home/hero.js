@@ -3,133 +3,115 @@ import "./hero.css";
 const apiBase = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const tokenKey = "comunid:hero-access";
 const profileKey = "comunid:hero-profile";
-const registration = document.querySelector("#registration");
-const nameInput = document.querySelector("#name");
-const communityInput = document.querySelector("#community");
-const photoInput = document.querySelector("#photo");
-const photoPreview = document.querySelector("#photo-preview");
-const joinButton = document.querySelector("#join");
+const heroes = new Map([
+  ["matias-kreder", "Matias Kreder"],
+  ["rossana-suarez", "Rossana Suarez (Roxs)"],
+  ["ricardo-ceci", "Ricardo Ceci"],
+  ["damian-olguin", "Damian Olguin"],
+]);
+const heroPhotoFiles = {
+  "matias-kreder": "hero-matias-kreder.png",
+  "rossana-suarez": "hero-rossana-suarez.png",
+  "ricardo-ceci": "hero-ricardo-ceci.png",
+  "damian-olguin": "hero-damian-olguin.png",
+};
+const select = document.querySelector("#hero-select");
 const qr = document.querySelector("#hero-qr");
 const status = document.querySelector("#status");
 const start = document.querySelector("#start");
 const stop = document.querySelector("#stop");
+const access = document.querySelector("#access");
+const code = document.querySelector("#hero-code");
 const map = document.querySelector("#hero-map");
 const mapFrame = document.querySelector("#map-frame");
 const mapAccuracy = document.querySelector("#map-accuracy");
 let token = sessionStorage.getItem(tokenKey) || "";
-let profileId = sessionStorage.getItem(profileKey) || "";
-let profileName = "";
+let authorizedHeroId = sessionStorage.getItem(profileKey) || "";
 let watchId = null;
 let heartbeat = null;
 let lastSent = 0;
 let sending = false;
 let pendingPublish = null;
-let photoDataUrl = "";
+
+function showPublishedPosition(latitude, longitude, accuracy) {
+  const latitudeSpan = 0.0025;
+  const longitudeSpan = latitudeSpan / Math.max(Math.cos(latitude * Math.PI / 180), 0.2);
+  const query = new URLSearchParams({
+    bbox: [longitude - longitudeSpan, latitude - latitudeSpan, longitude + longitudeSpan, latitude + latitudeSpan].join(","),
+    layer: "mapnik",
+    marker: `${latitude},${longitude}`,
+  });
+  mapFrame.src = `https://www.openstreetmap.org/export/embed.html?${query}`;
+  mapAccuracy.textContent = `Precisión aproximada ±${Math.round(accuracy)} m`;
+  map.hidden = false;
+}
+
+function hidePublishedPosition() {
+  map.hidden = true;
+  mapFrame.removeAttribute("src");
+}
 
 function message(text, error = false) {
   status.textContent = text;
   status.classList.toggle("error", error);
 }
 
-function showProfile(profile) {
-  profileId = profile.profileId || profile.id;
-  profileName = profile.name;
-  registration.hidden = true;
-  qr.hidden = false;
-  document.querySelector("#qr-name").textContent = profile.name;
-  document.querySelector("#qr-community").textContent = profile.community || "";
-  const qrPhoto = document.querySelector("#qr-photo");
-  if (photoDataUrl) {
-    qrPhoto.src = photoDataUrl;
-    qrPhoto.hidden = false;
-  } else if (profileId.startsWith("hero-")) {
-    qrPhoto.src = apiBase + "/profiles/" + profileId + "/photo";
-    qrPhoto.hidden = false;
-  } else {
-    qrPhoto.hidden = true;
+function showSelectedHero() {
+  const id = select.value;
+  qr.hidden = !id;
+  if (id) {
+    document.querySelector("#hero-photo").src = `/app/heros/${heroPhotoFiles[id]}`;
+    document.querySelector("#hero-photo").alt = `Foto de ${heroes.get(id)}`;
+    document.querySelector("#qr-image").src = `${apiBase}/profiles/${id}/qr`;
+    document.querySelector("#qr-image").alt = `QR de ${heroes.get(id)}`;
+    document.querySelector("#qr-name").textContent = heroes.get(id);
   }
-  document.querySelector("#qr-image").src = apiBase + "/profiles/" + profileId + "/qr";
-  document.querySelector("#qr-image").alt = "QR de " + profile.name;
-  start.hidden = false;
-  message("Tu perfil está listo. La ubicación está apagada.");
+  const canShare = id && authorizedHeroId === id;
+  start.hidden = !canShare || watchId !== null;
+  access.hidden = !id || Boolean(canShare);
+  if (!id) message("Elegí tu Hero para empezar.");
+  else if (!canShare) message("Tu QR está listo. Para emitir ubicación, ingresá el código privado de este Hero.");
+  else if (watchId === null) message("QR listo. La ubicación está apagada.");
 }
-
-async function imageAsDataUrl(file) {
-  const image = await createImageBitmap(file);
-  const scale = Math.min(1, 640 / Math.max(image.width, image.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(image.width * scale));
-  canvas.height = Math.max(1, Math.round(image.height * scale));
-  canvas.getContext("2d").drawImage(image, 0, 0, canvas.width, canvas.height);
-  image.close();
-  return canvas.toDataURL("image/jpeg", 0.72);
-}
-
-photoInput.addEventListener("change", async () => {
-  const file = photoInput.files?.[0];
-  if (!file) return;
-  try {
-    photoDataUrl = await imageAsDataUrl(file);
-    photoPreview.src = photoDataUrl;
-    photoPreview.hidden = false;
-  } catch {
-    message("No pudimos leer esa foto. Probá con otra imagen.", true);
-  }
-});
-
-registration.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  joinButton.disabled = true;
-  message("Creando tu perfil…");
-  try {
-    const response = await fetch(apiBase + "/heroes/register", {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ name: nameInput.value.trim(), community: communityInput.value, photoDataUrl }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok) throw new Error(result.error || "No pudimos crear tu perfil.");
-    token = result.token;
-    profileId = result.profileId;
-    profileName = result.name;
-    sessionStorage.setItem(tokenKey, token);
-    sessionStorage.setItem(profileKey, profileId);
-    showProfile(result);
-  } catch (error) {
-    message(error instanceof Error ? error.message : "No pudimos crear tu perfil. Revisá la conexión.", true);
-  } finally {
-    joinButton.disabled = false;
-  }
-});
 
 async function request(path, options = {}) {
-  const response = await fetch(apiBase + path, {
+  const response = await fetch(`${apiBase}${path}`, {
     ...options,
-    headers: { authorization: "Hero " + token, "x-hero-profile-id": profileId,
-      ...(options.body ? { "content-type": "application/json" } : {}) },
+    headers: { authorization: `Hero ${token}`, "x-hero-profile-id": authorizedHeroId || select.value, ...(options.body ? { "content-type": "application/json" } : {}) }
   });
   const result = await response.json().catch(() => ({}));
-  if (!response.ok) throw new Error(result.error || "HTTP " + response.status);
+  if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
   return result;
 }
 
-function showPublishedPosition(latitude, longitude, accuracy) {
-  const latSpan = 0.0025;
-  const lonSpan = latSpan / Math.max(Math.cos(latitude * Math.PI / 180), 0.2);
-  const query = new URLSearchParams({
-    bbox: [longitude - lonSpan, latitude - latSpan, longitude + lonSpan, latitude + latSpan].join(","),
-    layer: "mapnik",
-    marker: latitude + "," + longitude,
-  });
-  mapFrame.src = "https://www.openstreetmap.org/export/embed.html?" + query;
-  mapAccuracy.textContent = "Precisión aproximada ±" + Math.round(accuracy) + " m";
-  map.hidden = false;
-}
-
-function readPosition() {
-  navigator.geolocation.getCurrentPosition(publish, () =>
-    message("No pudimos obtener tu ubicación. Revisá el permiso del navegador.", true),
-  { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 });
+async function authorize(candidate) {
+  const entered = candidate.trim();
+  if (/^hero$/i.test(entered)) {
+    if (!select.value) return message("Primero elegí tu nombre.", true);
+    token = "HERO";
+    authorizedHeroId = select.value;
+  } else {
+    token = entered.includes("#") ? entered.split("#").pop() : entered;
+  }
+  try {
+    const result = await request("/heroes/me");
+    if (!heroes.has(result.profileId)) throw new Error("hero_not_in_event");
+    if (/^hero$/i.test(entered) && result.profileId !== select.value) throw new Error("hero_mismatch");
+    authorizedHeroId = result.profileId;
+    sessionStorage.setItem(tokenKey, token);
+    sessionStorage.setItem(profileKey, authorizedHeroId);
+    select.value = result.profileId;
+    code.value = "";
+    showSelectedHero();
+    message(`Acceso de ${heroes.get(result.profileId)} habilitado. La ubicación sigue apagada.`);
+  } catch {
+    token = "";
+    authorizedHeroId = "";
+    sessionStorage.removeItem(tokenKey);
+    sessionStorage.removeItem(profileKey);
+    showSelectedHero();
+    message("El código es HERO. Revisá también que hayas elegido tu nombre.", true);
+  }
 }
 
 async function publish(position) {
@@ -137,14 +119,11 @@ async function publish(position) {
   sending = true;
   try {
     const { latitude, longitude, accuracy } = position.coords;
-    pendingPublish = request("/heroes/me/location", {
-      method: "PUT",
-      body: JSON.stringify({ latitude, longitude, accuracy }),
-    });
+    pendingPublish = request("/heroes/me/location", { method: "PUT", body: JSON.stringify({ latitude, longitude, accuracy }) });
     await pendingPublish;
     lastSent = Date.now();
     if (watchId !== null) showPublishedPosition(latitude, longitude, accuracy);
-    message("Compartiendo ubicación · precisión aproximada " + Math.round(accuracy) + " m · " + profileName);
+    message(`Compartiendo ubicación · precisión aproximada ${Math.round(accuracy)} m · actualizado ${new Date().toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" })}`);
   } catch {
     message("No pudimos actualizar tu ubicación. Revisá la conexión.", true);
   } finally {
@@ -153,13 +132,25 @@ async function publish(position) {
   }
 }
 
+function readPosition() {
+  navigator.geolocation.getCurrentPosition(publish, () => message("No pudimos obtener tu ubicación. Revisá el permiso del navegador.", true),
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 });
+}
+
+select.addEventListener("change", showSelectedHero);
+document.querySelector("#connect").addEventListener("click", () => {
+  const candidate = code.value.trim();
+  if (!candidate) return message("Ingresá el código HERO.", true);
+  void authorize(candidate);
+});
+
 start.addEventListener("click", () => {
   if (!navigator.geolocation) return message("Este navegador no permite compartir ubicación.", true);
   message("Pidiendo permiso de ubicación…");
-  watchId = navigator.geolocation.watchPosition(publish, () =>
-    message("No pudimos obtener tu ubicación. Revisá el permiso del navegador.", true),
-  { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 });
+  watchId = navigator.geolocation.watchPosition(publish, () => message("No pudimos obtener tu ubicación. Revisá el permiso del navegador.", true),
+    { enableHighAccuracy: true, maximumAge: 10000, timeout: 12000 });
   heartbeat = setInterval(readPosition, 30000);
+  select.disabled = true;
   start.hidden = true;
   stop.hidden = false;
 });
@@ -172,33 +163,21 @@ stop.addEventListener("click", async () => {
   try {
     if (pendingPublish) await pendingPublish.catch(() => undefined);
     await request("/heroes/me/location", { method: "DELETE" });
-    map.hidden = true;
-    mapFrame.removeAttribute("src");
-    message("Dejaste de compartir tu ubicación. Tu perfil sigue visible.");
+    hidePublishedPosition();
+    message("Dejaste de compartir tu ubicación. El QR sigue disponible.");
     start.hidden = false;
     stop.hidden = true;
   } catch {
-    message("No pudimos detener la ubicación en el servidor. Si no hay actualizaciones, desaparecerá en 2 minutos.", true);
+    message("No pudimos detener la ubicación en el servidor. Probá otra vez; si no hay actualizaciones desaparece en 2 minutos.", true);
   } finally {
+    select.disabled = false;
     stop.disabled = false;
   }
 });
 
-// Compatibility with private links already issued to existing Heroes.
 const fragment = decodeURIComponent(location.hash.slice(1));
-if (fragment && !profileId) {
-  history.replaceState(null, "", location.pathname);
-  token = fragment;
-  profileId = fragment.includes(".") ? fragment.split(".")[0] : "";
-  sessionStorage.setItem(tokenKey, token);
-  sessionStorage.setItem(profileKey, profileId);
-  request("/heroes/me").then((result) => showProfile(result))
-    .catch(() => message("No pudimos validar tu enlace. Pedí uno nuevo a la organización.", true));
-} else if (token && profileId) {
-  request("/heroes/me").then((result) => showProfile(result))
-    .catch(() => {
-      sessionStorage.removeItem(tokenKey);
-      sessionStorage.removeItem(profileKey);
-      message("Completá tus datos para crear tu perfil.");
-    });
-}
+if (fragment) history.replaceState(null, "", location.pathname);
+if (authorizedHeroId && heroes.has(authorizedHeroId)) select.value = authorizedHeroId;
+if (fragment) void authorize(fragment);
+else if (token) void authorize(token);
+else showSelectedHero();

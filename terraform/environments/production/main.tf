@@ -7,6 +7,7 @@ module "comunid" {
     mobile = "mobile.comunid.app"
     admin  = "admin.comunid.app"
     hero   = "hero.comunid.app"
+    somos  = "somos.comunid.app"
     www    = "www.comunid.app"
   }
   cloudflare_zone_id = var.cloudflare_zone_id

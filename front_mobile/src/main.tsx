@@ -99,7 +99,7 @@ function Avatar({
   profile: BuilderProfile;
   large?: boolean;
 }) {
-  const photoUrl = heroPhotoUrl(profile.id) || (profile.id.startsWith("hero-") ? apiBaseUrl + "/profiles/" + profile.id + "/photo" : null);
+  const photoUrl = heroPhotoUrl(profile.id) || (profile.id.startsWith("member-") ? apiBaseUrl + "/profiles/" + profile.id + "/photo" : null);
   return (
     <span
       className={`avatar ${large ? "avatar-large" : ""} ${photoUrl ? "avatar-photo" : ""} ${photoUrl ? `avatar-${profile.id}` : ""}`}
@@ -145,7 +145,13 @@ function App() {
   const [liveHeroes, setLiveHeroes] = useState<LiveHero[]>([]);
   const [mapHeroId, setMapHeroId] = useState<string | null>(null);
   const [communityOpen, setCommunityOpen] = useState(false);
+  const [mapDismissed, setMapDismissed] = useState(false);
   const mapHero = liveHeroes.find((hero) => hero.profileId === mapHeroId);
+  useEffect(() => {
+    if (communityOpen && !mapDismissed && !mapHeroId && liveHeroes.length > 0) {
+      setMapHeroId(liveHeroes[0].profileId);
+    }
+  }, [communityOpen, liveHeroes, mapDismissed, mapHeroId]);
   const [encounters, setEncounters] = useState<Encounter[]>(() =>
     apiBaseUrl ? [] : readEncounters(),
   );
@@ -273,9 +279,9 @@ function App() {
   useEffect(() => {
     if (!apiBaseUrl) return;
     let active = true;
-    const refresh = () => fetch(`${apiBaseUrl}/heroes/live`)
+    const refresh = () => fetch(`${apiBaseUrl}/community/live`)
       .then((response) => response.ok ? response.json() : Promise.reject())
-      .then((data) => { if (active) setLiveHeroes(Array.isArray(data.heroes) ? data.heroes : []); })
+      .then((data) => { if (active) setLiveHeroes(Array.isArray(data.people) ? data.people : []); })
       .catch(() => { if (active) setLiveHeroes([]); });
     void refresh();
     const timer = window.setInterval(refresh, 30000);
@@ -766,7 +772,11 @@ function App() {
               })}
             </div>
           </section>
-          <button className="community-live-toggle" type="button" onClick={() => setCommunityOpen((open) => !open)} aria-expanded={communityOpen}>
+          <button className="community-live-toggle" type="button" onClick={() => setCommunityOpen((open) => {
+            const next = !open;
+            if (next) setMapDismissed(false);
+            return next;
+          })} aria-expanded={communityOpen}>
             <Users size={19} /> Comunidad en vivo <span>{liveHeroes.length}</span><ChevronRight size={18} />
           </button>
           {communityOpen && <section className="live-heroes" aria-label="Personas compartiendo ubicación">
@@ -775,15 +785,15 @@ function App() {
             <p>Solo aparecen quienes activaron voluntariamente su ubicación. Puede variar dentro del edificio.</p>
             {liveHeroes.length === 0 ? <p className="community-empty">Todavía no hay personas compartiendo su ubicación.</p> : liveHeroes.map((hero) => {
               const profile = profiles.find((item) => item.id === hero.profileId);
-              const photo = heroPhotoUrl(hero.profileId) || (hero.profileId.startsWith("hero-") ? apiBaseUrl + "/profiles/" + hero.profileId + "/photo" : null);
-              return <button key={hero.profileId} className="live-hero" type="button" onClick={() => setMapHeroId(hero.profileId)} aria-expanded={mapHeroId === hero.profileId}>
+              const photo = heroPhotoUrl(hero.profileId) || (hero.profileId.startsWith("member-") ? apiBaseUrl + "/profiles/" + hero.profileId + "/photo" : null);
+              return <button key={hero.profileId} className="live-hero" type="button" onClick={() => { setMapDismissed(false); setMapHeroId(hero.profileId); }} aria-expanded={mapHeroId === hero.profileId}>
                 {photo ? <img className="live-hero-photo" src={photo} alt="" loading="lazy" /> : <span className="live-hero-pulse" aria-hidden="true" />}
                 <span><strong>{hero.name}</strong><small>{profile?.community || profile?.title || "Hero"} · precisión ±{Math.round(hero.accuracy)} m · Ver mapa</small></span>
                 <span aria-hidden="true">⌖</span>
               </button>;
             })}
             {mapHero && <div className="live-hero-map">
-              <div className="live-hero-map-header"><strong>Ubicación de {mapHero.name}</strong><button type="button" onClick={() => setMapHeroId(null)} aria-label="Cerrar mapa"><X size={18} /></button></div>
+              <div className="live-hero-map-header"><strong>Ubicación de {mapHero.name}</strong><button type="button" onClick={() => { setMapHeroId(null); setMapDismissed(true); }} aria-label="Cerrar mapa"><X size={18} /></button></div>
               <iframe title={`Mapa de ${mapHero.name}`} src={heroMapUrl(mapHero)} loading="lazy" referrerPolicy="strict-origin-when-cross-origin" />
               <small>Mapa: © OpenStreetMap contributors · La posición puede variar dentro del edificio.</small>
             </div>}

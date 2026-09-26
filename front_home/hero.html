@@ -12,31 +12,26 @@
       <section class="hero-panel">
         <span class="eyebrow">TU UBICACIÓN, TU DECISIÓN</span>
         <h1>Que la comunidad <em>te encuentre.</em></h1>
-        <p id="intro">Sumate con tu nombre y comunidad. Tu perfil se carga para este evento y vos elegís cuándo compartir tu ubicación.</p>
-        <form id="registration" class="hero-registration">
-          <label for="name">Nombre</label>
-          <input id="name" name="name" autocomplete="name" maxlength="80" required placeholder="Tu nombre" />
-          <label for="community">Comunidad</label>
-          <select id="community" name="community" required>
-            <option value="">Elegí tu comunidad</option>
-            <option>AWS User Group</option>
-            <option>AWS Student Builder Groups</option>
-            <option>AWS Community Builder</option>
-          </select>
-          <label for="photo">Tu foto <small>(opcional)</small></label>
-          <input id="photo" name="photo" type="file" accept="image/*" capture="user" />
-          <img id="photo-preview" class="hero-portrait" alt="Vista previa de tu foto" hidden />
-          <label class="consent-check"><input id="consent" type="checkbox" required /> Acepto aparecer en la comunidad de este evento.</label>
-          <button id="join" type="submit">Crear mi perfil</button>
-        </form>
+        <p id="intro">Elegí tu perfil, escribí HERO y compartí tu ubicación.</p>
+        <label class="hero-select-label" for="hero-select">Elegí tu Hero</label>
+        <select id="hero-select">
+          <option value="">Seleccioná tu nombre</option>
+          <option value="matias-kreder">Matias Kreder</option>
+          <option value="rossana-suarez">Rossana Suarez (Roxs)</option>
+          <option value="ricardo-ceci">Ricardo Ceci</option>
+          <option value="damian-olguin">Damian Olguin</option>
+        </select>
         <div id="hero-qr" class="hero-qr" hidden>
-          <img id="qr-photo" class="hero-portrait" alt="" hidden />
+          <img id="hero-photo" class="hero-portrait" alt="" />
           <strong id="qr-name"></strong>
-          <small id="qr-community"></small>
           <img id="qr-image" class="qr-image" alt="" />
-          <small>Compartí este QR para que te encuentren y sumen a su pasaporte.</small>
+          <small>Pedile a la otra persona que escanee este QR desde su pasaporte.</small>
         </div>
-        <p id="status" role="status" aria-live="polite">Completá tus datos para empezar.</p>
+        <div id="access" class="hero-access" hidden>
+          <label for="hero-code">Código privado para compartir ubicación</label>
+          <div><input id="hero-code" type="text" autocomplete="off" placeholder="HERO" /><button id="connect" type="button">Habilitar</button></div>
+        </div>
+        <p id="status" role="status" aria-live="polite">Elegí tu Hero para empezar.</p>
         <button id="start" type="button" hidden>Compartir mi ubicación</button>
         <button id="stop" type="button" hidden>Dejar de compartir</button>
         <section id="hero-map" class="hero-map" aria-label="Tu ubicación compartida" hidden>
@@ -44,7 +39,7 @@
           <iframe id="map-frame" title="Mapa de tu ubicación compartida" loading="lazy" referrerpolicy="strict-origin-when-cross-origin"></iframe>
           <small class="hero-map-note">Mapa: © OpenStreetMap contributors. La posición puede variar dentro del edificio.</small>
         </section>
-        <p class="privacy">Tu ubicación se muestra en la app durante 2 minutos desde la última actualización. Se actualiza mientras esta página está abierta y podés dejar de compartir cuando quieras. La ubicación nunca es obligatoria.</p>
+        <p class="privacy">Tu ubicación se ve en la app durante 2 minutos desde la última actualización. Si cerrás esta página o bloqueás el teléfono, las actualizaciones pueden detenerse. Mantené la página abierta mientras quieras compartir.</p>
       </section>
     </main>
     <script type="module" src="/hero.js"></script>

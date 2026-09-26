@@ -121,7 +121,7 @@ async function heroFromRequest(event) {
   const expected = Buffer.from(access.tokenHash || "", "hex");
   if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) return null;
   const profile = await persistedProfile(match[1]);
-  return profile?.consent === true && profile.role === "hero" ? profile : null;
+  return profile?.consent === true ? profile : null;
 }
 
 async function createHeroLink(event, profileId) {
@@ -139,25 +139,28 @@ async function createHeroLink(event, profileId) {
   return json(event, 201, { profileId, url: `https://hero.comunid.app/#${profileId}.${secret}` });
 }
 
-async function registerHero(event) {
+async function registerCommunityMember(event) {
   const input = parseBody(event);
   const name = String(input.name || "").trim().replace(/\s+/g, " ");
   const community = String(input.community || "");
+  const role = String(input.role || "");
+  const roles = new Set(["student", "builder", "connector", "legend"]);
   const communities = new Set(["AWS User Group", "AWS Student Builder Groups", "AWS Community Builder"]);
   if (name.length < 2 || name.length > 80 || /[\x00-\x1f\x7f]/.test(name)) {
-    return json(event, 422, { error: "hero_name_invalid" });
+    return json(event, 422, { error: "community_name_invalid" });
   }
-  if (!communities.has(community)) return json(event, 422, { error: "hero_community_invalid" });
-  const profileId = `hero-${randomUUID()}`;
+  if (!communities.has(community)) return json(event, 422, { error: "community_invalid" });
+  if (!roles.has(role)) return json(event, 422, { error: "community_role_invalid" });
+  const profileId = `member-${randomUUID()}`;
   const secret = randomBytes(32).toString("base64url");
   const timestamp = new Date().toISOString();
-  const profile = { id: profileId, name, role: "hero", title: community, city: "", community,
+  const profile = { id: profileId, name, role, title: community, city: "", community,
     superpower: "", askMeAbout: "", story: "", color: "#C8FF3D", consent: true, faceConsent: false };
   const photo = String(input.photoDataUrl || "");
   let photoItem;
   if (photo) {
     const match = /^data:image\/(jpeg|png|webp);base64,([A-Za-z0-9+/]+=*)$/.exec(photo);
-    if (!match || Buffer.from(match[2], "base64").length > 180_000) return json(event, 422, { error: "hero_photo_invalid" });
+    if (!match || Buffer.from(match[2], "base64").length > 180_000) return json(event, 422, { error: "photo_invalid" });
     photoItem = { pk: `PROFILE#${profileId}`, sk: "PHOTO", contentType: `image/${match[1]}`, imageBase64: match[2] };
   }
   await database.send(new PutCommand({ TableName: tableName,
@@ -166,7 +169,25 @@ async function registerHero(event) {
   if (photoItem) await database.send(new PutCommand({ TableName: tableName, Item: photoItem }));
   await database.send(new PutCommand({ TableName: tableName, Item: { pk: `HERO#${profileId}`, sk: "ACCESS", eventId: defaultEventId,
     tokenHash: createHash("sha256").update(secret).digest("hex"), updatedAt: timestamp } }));
-  return json(event, 201, { profileId, name, community, token: `${profileId}.${secret}` });
+  return json(event, 201, { profileId, name, role, community, token: `${profileId}.${secret}` });
+}
+
+async function communityRoute(event, method, parts) {
+  if (method !== "GET" || parts[1] !== "live" || parts.length !== 2) return json(event, 404, { error: "not_found" });
+  const profiles = await queryAll({ TableName: tableName,
+    KeyConditionExpression: "pk = :pk AND begins_with(sk, :prefix)",
+    ExpressionAttributeValues: { ":pk": `EVENT#${defaultEventId}`, ":prefix": "PROFILE#" }
+  });
+  const sharing = await Promise.all(profiles.filter((profile) => profile.consent === true).map(async (profile) => {
+    const result = await database.send(new GetCommand({ TableName: tableName,
+      Key: { pk: `HERO#${profile.id}`, sk: "LOCATION" } }));
+    const location = result.Item;
+    return location && location.expiresAt > Date.now()
+      ? { profileId: profile.id, name: profile.name, role: profile.role, community: profile.community,
+          latitude: location.latitude, longitude: location.longitude, accuracy: location.accuracy, updatedAt: location.updatedAt }
+      : null;
+  }));
+  return json(event, 200, { people: sharing.filter(Boolean) });
 }
 
 async function heroRoute(event, method, parts) {
@@ -581,7 +602,10 @@ export async function handler(event) {
 
   try {
     if (method === "GET" && parts[0] === "health") return json(event, 200, { service: "comunid-api", status: "ok", eventId: defaultEventId });
-    if (method === "POST" && parts[0] === "heroes" && parts[1] === "register" && parts.length === 2) return registerHero(event);
+    if (parts[0] === "community") {
+      if (method === "POST" && parts[1] === "register" && parts.length === 2) return registerCommunityMember(event);
+      return communityRoute(event, method, parts);
+    }
     if (parts[0] === "guests") return guestRoute(event, method, parts);
     if (parts[0] === "heroes") return heroRoute(event, method, parts);
     if (parts[0] === "admin") {
