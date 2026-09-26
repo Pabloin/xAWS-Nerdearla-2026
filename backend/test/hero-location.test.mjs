@@ -5,9 +5,9 @@ import { DynamoDBDocumentClient, DeleteCommand, GetCommand, PutCommand, QueryCom
 process.env.ADMIN_TOKEN = "test-admin-token";
 const { handler } = await import("../functions/api.mjs");
 
-function request(method, path, authorization, body) {
+function request(method, path, authorization, body, extraHeaders = {}) {
   return { rawPath: path, requestContext: { http: { method } },
-    headers: authorization ? { authorization } : {}, body: body ? JSON.stringify(body) : undefined };
+    headers: { ...(authorization ? { authorization } : {}), ...extraHeaders }, body: body ? JSON.stringify(body) : undefined };
 }
 
 test("only an invited hero can publish a fresh, revocable location", async () => {
@@ -36,6 +36,11 @@ test("only an invited hero can publish a fresh, revocable location", async () =>
     const token = JSON.parse(link.body).url.split("#")[1];
     assert.ok(token.startsWith("matias."));
     assert.equal((await handler(request("PUT", "/heroes/me/location", "Hero matias.invalid", { latitude: -34, longitude: -58, accuracy: 15 }))).statusCode, 401);
+    const sharedCodeHeaders = { "x-hero-profile-id": "matias" };
+    assert.equal((await handler(request("GET", "/heroes/me", "Hero hErO"))).statusCode, 401);
+    assert.equal((await handler(request("GET", "/heroes/me", "Hero hErO", undefined, sharedCodeHeaders))).statusCode, 200);
+    assert.equal((await handler(request("PUT", "/heroes/me/location", "Hero hErO", { latitude: -34.6, longitude: -58.4, accuracy: 15 }, sharedCodeHeaders))).statusCode, 200);
+    assert.equal((await handler(request("DELETE", "/heroes/me/location", "Hero HERO", undefined, sharedCodeHeaders))).statusCode, 200);
     assert.equal((await handler(request("PUT", "/heroes/me/location", `Hero ${token}`, { latitude: 190, longitude: -58, accuracy: 15 }))).statusCode, 422);
     assert.equal((await handler(request("PUT", "/heroes/me/location", `Hero ${token}`, { latitude: -34.6, longitude: -58.4, accuracy: 15 }))).statusCode, 200);
     const live = JSON.parse((await handler(request("GET", "/heroes/live"))).body).heroes;

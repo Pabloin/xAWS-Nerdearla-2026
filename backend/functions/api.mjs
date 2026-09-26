@@ -27,7 +27,7 @@ function headers(event, contentType = "application/json") {
   return {
     "content-type": contentType,
     "access-control-allow-origin": allowedOrigins.has(origin) ? origin : publicAppUrl,
-    "access-control-allow-headers": "content-type,authorization",
+    "access-control-allow-headers": "content-type,authorization,x-hero-profile-id",
     "access-control-allow-methods": "GET,POST,PUT,DELETE,OPTIONS",
     vary: "origin"
   };
@@ -105,6 +105,11 @@ async function createGuest(event) {
 
 async function heroFromRequest(event) {
   const authorization = event.headers?.authorization || event.headers?.Authorization || "";
+  if (/^Hero\s+HERO$/i.test(authorization)) {
+    const profileId = event.headers?.["x-hero-profile-id"] || event.headers?.["X-Hero-Profile-Id"] || "";
+    const profile = profileId ? await persistedProfile(profileId) : null;
+    return profile?.consent === true && profile.role === "hero" ? profile : null;
+  }
   const match = /^Hero ([A-Za-z0-9_-]{1,80})\.([A-Za-z0-9_-]{43})$/.exec(authorization);
   if (!match) return null;
   const result = await database.send(new GetCommand({

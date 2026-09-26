@@ -2,12 +2,19 @@ import "./hero.css";
 
 const apiBase = String(import.meta.env.VITE_API_BASE_URL || "").replace(/\/$/, "");
 const tokenKey = "comunid:hero-access";
+const profileKey = "comunid:hero-profile";
 const heroes = new Map([
   ["matias-kreder", "Matias Kreder"],
   ["rossana-suarez", "Rossana Suarez (Roxs)"],
   ["ricardo-ceci", "Ricardo Ceci"],
   ["damian-olguin", "Damian Olguin"],
 ]);
+const heroPhotoFiles = {
+  "matias-kreder": "hero-04-matias-kreder.png",
+  "rossana-suarez": "hero-02-rossana-suarez.png",
+  "ricardo-ceci": "hero-03-ricardo-ceci.png",
+  "damian-olguin": "hero-01-damian-olguin.png",
+};
 const select = document.querySelector("#hero-select");
 const qr = document.querySelector("#hero-qr");
 const status = document.querySelector("#status");
@@ -16,7 +23,7 @@ const stop = document.querySelector("#stop");
 const access = document.querySelector("#access");
 const code = document.querySelector("#hero-code");
 let token = sessionStorage.getItem(tokenKey) || "";
-let authorizedHeroId = "";
+let authorizedHeroId = sessionStorage.getItem(profileKey) || "";
 let watchId = null;
 let heartbeat = null;
 let lastSent = 0;
@@ -31,7 +38,7 @@ function showSelectedHero() {
   const id = select.value;
   qr.hidden = !id;
   if (id) {
-    document.querySelector("#hero-photo").src = `/app/heros/hero-${id}.png`;
+    document.querySelector("#hero-photo").src = `/app/heros/${heroPhotoFiles[id]}`;
     document.querySelector("#hero-photo").alt = `Foto de ${heroes.get(id)}`;
     document.querySelector("#qr-image").src = `${apiBase}/profiles/${id}/qr`;
     document.querySelector("#qr-image").alt = `QR de ${heroes.get(id)}`;
@@ -48,7 +55,7 @@ function showSelectedHero() {
 async function request(path, options = {}) {
   const response = await fetch(`${apiBase}${path}`, {
     ...options,
-    headers: { authorization: `Hero ${token}`, ...(options.body ? { "content-type": "application/json" } : {}) }
+    headers: { authorization: `Hero ${token}`, "x-hero-profile-id": authorizedHeroId || select.value, ...(options.body ? { "content-type": "application/json" } : {}) }
   });
   const result = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
@@ -57,12 +64,20 @@ async function request(path, options = {}) {
 
 async function authorize(candidate) {
   const entered = candidate.trim();
-  token = entered.includes("#") ? entered.split("#").pop() : entered;
+  if (/^hero$/i.test(entered)) {
+    if (!select.value) return message("Primero elegí tu nombre.", true);
+    token = "HERO";
+    authorizedHeroId = select.value;
+  } else {
+    token = entered.includes("#") ? entered.split("#").pop() : entered;
+  }
   try {
     const result = await request("/heroes/me");
     if (!heroes.has(result.profileId)) throw new Error("hero_not_in_event");
+    if (/^hero$/i.test(entered) && result.profileId !== select.value) throw new Error("hero_mismatch");
     authorizedHeroId = result.profileId;
     sessionStorage.setItem(tokenKey, token);
+    sessionStorage.setItem(profileKey, authorizedHeroId);
     select.value = result.profileId;
     code.value = "";
     showSelectedHero();
@@ -71,8 +86,9 @@ async function authorize(candidate) {
     token = "";
     authorizedHeroId = "";
     sessionStorage.removeItem(tokenKey);
+    sessionStorage.removeItem(profileKey);
     showSelectedHero();
-    message("Ese código privado no es válido. Pedí uno nuevo a la organización.", true);
+    message("El código es HERO. Revisá también que hayas elegido tu nombre.", true);
   }
 }
 
@@ -99,7 +115,7 @@ function readPosition() {
 select.addEventListener("change", showSelectedHero);
 document.querySelector("#connect").addEventListener("click", () => {
   const candidate = code.value.trim();
-  if (!candidate) return message("Ingresá el código privado de este Hero.", true);
+  if (!candidate) return message("Ingresá el código HERO.", true);
   void authorize(candidate);
 });
 
@@ -134,6 +150,7 @@ stop.addEventListener("click", async () => {
 
 const fragment = decodeURIComponent(location.hash.slice(1));
 if (fragment) history.replaceState(null, "", location.pathname);
+if (authorizedHeroId && heroes.has(authorizedHeroId)) select.value = authorizedHeroId;
 if (fragment) void authorize(fragment);
 else if (token) void authorize(token);
 else showSelectedHero();
